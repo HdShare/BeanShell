@@ -1,20 +1,40 @@
 package me.hd.beanshell
 
+import android.app.Activity
 import android.os.Bundle
-import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import android.util.Log
+import android.widget.Button
+import bsh.BshMethod
+import bsh.Interpreter
 
-class MainActivity : AppCompatActivity() {
+object Tool {
+    @JvmStatic
+    fun log(str: String) {
+        Log.d("BeanShell", str)
+    }
+}
+
+class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContentView(R.layout.activity_main)
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
+        initView()
+    }
+
+    private fun initView() {
+        findViewById<Button>(R.id.btnTest).setOnClickListener {
+            runCatching {
+                val interpreter = Interpreter().apply {
+                    set("str", "Hello World!")
+                    nameSpace.setMethod(
+                        "log",
+                        BshMethod(Tool::class.java.getMethod("log", String::class.java), Tool)
+                    )
+                }
+                interpreter.eval("log(str);")
+            }.onFailure { e ->
+                Log.e("BeanShell", "Execution Failed", e)
+            }
         }
     }
 }
