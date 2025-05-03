@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "BeanShell"
 include(":app")
+include(":beanshell-20b6")
