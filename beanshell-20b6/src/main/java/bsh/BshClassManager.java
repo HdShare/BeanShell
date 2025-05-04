@@ -73,9 +73,11 @@ import java.lang.reflect.Modifier;
 */
 public class BshClassManager
 {
+	public HashMap<String, Class<?>> cachedClassMap = new HashMap<>();
+
 	/** Identifier for no value item.  Use a hashtable as a Set. */
-	private static Object NOVALUE = new Object(); 
-	/** 
+	private static Object NOVALUE = new Object();
+	/**
 		The interpreter which created the class manager 
 		This is used to load scripted classes from source files.
 	*/
