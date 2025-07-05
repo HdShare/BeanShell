@@ -30,12 +30,20 @@ BeanShell-2.0b6 Support For Android
 
 ---
 
+## 依赖:
+
+```kotlin
+implementation("com.github.HdShare:BeanShell:<version>")
+```
+
+---
+
 ## 致谢:
 
 | Name      | Link                                                           |
 |-----------|----------------------------------------------------------------|
 | beanshell | [beanshell](https://github.com/beanshell/beanshell/tree/2.0b6) |
-| BeanShell | [BeanShell](https://github.com/Hicores/BeanShell)              |
+| Hicores   | [BeanShell](https://github.com/Hicores/BeanShell)              |
 
 ---
 
