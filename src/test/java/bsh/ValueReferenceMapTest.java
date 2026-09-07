@@ -3,6 +3,11 @@ package bsh;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.lang.ref.Reference;
+import java.lang.reflect.Field;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import bsh.util.ValueReferenceMap;
 import static bsh.util.ValueReferenceMap.Type.Soft;
 import static bsh.util.ValueReferenceMap.Type.Weak;
@@ -12,6 +17,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -103,6 +110,44 @@ public class ValueReferenceMapTest {
         assertThat(cache.size(), equalTo(0));
         assertFalse(cache.remove(null));
         System.gc();
+    }
+
+    @Test
+    public void weak_reference_cleanup_preserves_replacement() throws Exception {
+        assertCleanupPreservesReplacement(Weak);
+    }
+
+    @Test
+    public void soft_reference_cleanup_preserves_replacement() throws Exception {
+        assertCleanupPreservesReplacement(Soft);
+    }
+
+    private void assertCleanupPreservesReplacement(ValueReferenceMap.Type type)
+            throws Exception {
+        AtomicInteger creations = new AtomicInteger();
+        ValueReferenceMap<String,Object> cache = new ValueReferenceMap<>(key -> {
+            creations.incrementAndGet();
+            return new Object();
+        }, type);
+        Object original = cache.get("key");
+        Reference<?> oldReference = cachedReference(cache, "key");
+
+        // Recreate a collected value before its queued reference is processed.
+        oldReference.clear();
+        assertTrue(oldReference.enqueue());
+        Object replacement = cache.get("key");
+        assertNotSame(original, replacement);
+
+        assertThat(cache.size(), equalTo(1));
+        assertSame(replacement, cache.get("key"));
+        assertThat(creations.get(), equalTo(2));
+    }
+
+    private Reference<?> cachedReference(ValueReferenceMap<?,?> cache, Object key)
+            throws ReflectiveOperationException {
+        Field field = ValueReferenceMap.class.getDeclaredField("map");
+        field.setAccessible(true);
+        return (Reference<?>) ((Map<?,?>) field.get(cache)).get(key);
     }
 
     @Test

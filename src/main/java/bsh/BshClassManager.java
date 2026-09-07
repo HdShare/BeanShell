@@ -481,8 +481,6 @@ public class BshClassManager {
     public void cacheClassInfo( String name, Class<?> value ) {
         if ( value != null ) {
             absoluteClassCache.put(name, value);
-            // eagerly start the member cache
-            memberCache.get(value);
         }
         else
             absoluteNonClasses.add( name );
