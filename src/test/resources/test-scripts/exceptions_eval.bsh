@@ -77,9 +77,11 @@ try {
 
 try {
     new {{false}, true};
+    fail("Expected invalid array initializer to fail");
 } catch (Exception ex) {
-    Matcher m = Pattern.compile("Incompatible type: (.*) in initializer of array type: (.*) at position: \\d+").matcher(ex.getMessage());
-    String err = "Expected [Incompatible type: (.*) in initializer of array type: (.*) at position: \\d+] got ["+ex.getMessage()+"]";
+    String expected = "Error in array initializer: Cannot cast primitive value to object type [Z";
+    Matcher m = Pattern.compile(Pattern.quote(expected)).matcher(ex.getMessage());
+    String err = "Expected ["+expected+"] got ["+ex.getMessage()+"]";
     assertTrue(err,m.find());
 } finally {
     flag();
