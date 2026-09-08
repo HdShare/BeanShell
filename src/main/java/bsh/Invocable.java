@@ -224,6 +224,12 @@ public abstract class Invocable implements Member {
         }
     }
 
+    /** Invoke with the lookup types retained by argument evaluation. */
+    Object invokeWithArguments(Object base, CallArguments arguments)
+            throws InvocationTargetException {
+        return invoke(base, arguments.values);
+    }
+
     /** {@inheritDoc} */
     @Override
     public String toString() { return toString; }

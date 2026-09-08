@@ -366,8 +366,14 @@ public final class This implements java.io.Serializable, Runnable
         boolean declaredOnly  )
         throws EvalError
     {
-        if (args == null)
-            args = Reflect.ZERO_ARGS;
+        return invokeMethod(methodName, new CallArguments(args), interpreter,
+                callstack, callerInfo, declaredOnly, null);
+    }
+
+    Object invokeMethod(String methodName, CallArguments arguments, Interpreter interpreter,
+            CallStack callstack, Node callerInfo, boolean declaredOnly,
+            CallArguments.Result resultType) throws EvalError {
+        Object[] args = arguments.values;
 
         if ( interpreter == null )
             interpreter = declaringInterpreter;
@@ -379,12 +385,14 @@ public final class This implements java.io.Serializable, Runnable
             callerInfo = Node.JAVACODE;
 
         // Find the bsh method
-        Class<?>[] types = Types.getTypes( args );
+        Class<?>[] types = arguments.types;
         BshMethod bshMethod = Reflect.getMethod(
             namespace, methodName, types, declaredOnly );
 
-        if ( bshMethod != null )
-            return bshMethod.invoke( args, interpreter, callstack, callerInfo );
+        if (bshMethod != null) {
+            if (resultType != null) resultType.type = bshMethod.getReturnType();
+            return bshMethod.invoke(arguments, interpreter, callstack, callerInfo, false);
+        }
 
         /*
             No scripted method of that name.
