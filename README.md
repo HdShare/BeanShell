@@ -104,6 +104,8 @@ Please note only issues and pull requests made against the master branch will be
 
 For full documentation, see the [BeanShell wiki](https://github.com/beanshell/beanshell/wiki) and the [FAQ](https://github.com/beanshell/beanshell/wiki/FAQ) for frequently asked questions.
 
+See the [script migration guide](MIGRATION.md) for compatibility examples and the [changelog](CHANGES.md) for build and Java integration notices.
+
 The old documentation available at [http://beanshell.org](http://www.beanshell.org/docs.html) may also be useful.
 
 ### Summary of features
