@@ -112,6 +112,15 @@ public class BshDocTest {
         assertEquals("1", docs.text("count(//Comment)"));
     }
 
+    @Test
+    public void normalCliProducesXmlWithoutDebugOutput() throws Exception {
+        Documentation docs = render("/** METHOD_DOC */ f() {}", "/** FILE_DOC */ value = 1;");
+        assertEquals("2", docs.text("count(/BshDoc/File)"));
+        assertEquals("METHOD_DOC", docs.text("/BshDoc/File[1]/Method/Comment/Text"));
+        assertEquals("FILE_DOC", docs.text("/BshDoc/File[2]/Comment/Text"));
+        assertEquals("", docs.stderr);
+    }
+
     private Documentation render(String... sources) throws Exception {
         File output = temporary.newFile();
         File errors = temporary.newFile();
