@@ -78,6 +78,40 @@ public class BshDocTest {
         assertTrue(Parser.getFormalCommentsBeforeToken(null).isEmpty());
     }
 
+    @Test
+    public void adjacentFileAndMethodCommentsAreBothPreserved() throws Exception {
+        Documentation docs = render("/** FILE_DOC */ /** METHOD_DOC */ f() { return 42; }");
+        assertEquals("FILE_DOC", docs.text("/BshDoc/File/Comment/Text"));
+        assertEquals("METHOD_DOC", docs.text("/BshDoc/File/Method/Comment/Text"));
+        assertEquals("2", docs.text("count(//Comment)"));
+    }
+
+    @Test
+    public void identicalFileAndMethodCommentTextRemainsSeparate() throws Exception {
+        Documentation docs = render("/** SAME_DOC */ /** SAME_DOC */ f() {}");
+        assertEquals("SAME_DOC", docs.text("/BshDoc/File/Comment/Text"));
+        assertEquals("SAME_DOC", docs.text("/BshDoc/File/Method/Comment/Text"));
+        assertEquals("2", docs.text("count(//Comment)"));
+    }
+
+    @Test
+    public void separatedFileAndMultipleMethodCommentsKeepTheirOwners() throws Exception {
+        Documentation docs = render("/** FILE_DOC */ value = 1;"
+                + " /** FIRST_METHOD */ f() {} /** SECOND_METHOD */ g() {}");
+        assertEquals("FILE_DOC", docs.text("/BshDoc/File/Comment/Text"));
+        assertEquals("FIRST_METHOD", docs.text("/BshDoc/File/Method[Name='f']/Comment/Text"));
+        assertEquals("SECOND_METHOD", docs.text("/BshDoc/File/Method[Name='g']/Comment/Text"));
+        assertEquals("3", docs.text("count(//Comment)"));
+    }
+
+    @Test
+    public void singleMethodCommentIsNotDuplicatedAsFileDocumentation() throws Exception {
+        Documentation docs = render("/** METHOD_DOC */ f() {}");
+        assertEquals("METHOD_DOC", docs.text("/BshDoc/File/Method/Comment/Text"));
+        assertEquals("0", docs.text("count(/BshDoc/File/Comment)"));
+        assertEquals("1", docs.text("count(//Comment)"));
+    }
+
     private Documentation render(String... sources) throws Exception {
         File output = temporary.newFile();
         File errors = temporary.newFile();

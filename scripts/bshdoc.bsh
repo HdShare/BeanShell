@@ -110,9 +110,10 @@ bshdoc( filename )
         this.node = parser.popNode();
         formalComments = parser.getFormalCommentsBeforeNode(node);
 
+        // The first comment can document the file; the last documents the method.
         if ( formalComments.size() > 0
             && firstComment == null )
-            firstComment = formalComments.get(formalComments.size()-1);
+            firstComment = formalComments.get(0);
 
         if ( node instanceof BSHMethodDeclaration )
         {
