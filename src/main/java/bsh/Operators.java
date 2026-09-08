@@ -401,7 +401,7 @@ class Operators implements ParserConstants {
                 "Unimplemented binary integer operator");
     }
 
-    // returns Object covering both Float return types
+    // Java arithmetic returns Float; the power extension uses Double/BigDecimal.
     static Object floatBinaryOperation(float lhs, float rhs, int kind)
             throws UtilEvalError
     {
@@ -409,18 +409,12 @@ class Operators implements ParserConstants {
         {
             // arithmetic
             case PLUS:
-                if ( lhs > 0d && (Float.MAX_VALUE - lhs) < rhs )
-                    break;
                 return lhs + rhs;
 
             case MINUS:
-                if ( lhs < 0d && (-Float.MAX_VALUE - lhs) > -rhs )
-                    break;
                 return lhs - rhs;
 
             case STAR:
-                if ( lhs != 0 && Float.MAX_VALUE / lhs < rhs )
-                    break;
                 return lhs * rhs;
 
             case SLASH:
@@ -432,10 +426,7 @@ class Operators implements ParserConstants {
 
             case POWER:
             case POWERX:
-                double check = Math.pow(lhs, rhs);
-                if ( Double.isInfinite(check) )
-                    break;
-                return check;
+                return doubleBinaryOperation(lhs, rhs, kind);
 
             // can't shift floating-point values
             case LSHIFT:
@@ -447,9 +438,6 @@ class Operators implements ParserConstants {
                 throw new UtilEvalError("Can't shift float values");
 
         }
-        if ( OVERFLOW_OPS.contains(kind) )
-            return bigDecimalBinaryOperation(BigDecimal.valueOf(lhs), BigDecimal.valueOf(rhs), kind);
-
         throw new InterpreterError(
                 "Unimplemented binary float operator");
     }
@@ -570,30 +558,36 @@ class Operators implements ParserConstants {
         Number lnum = promoteToInteger(lhs);
         Number rnum = promoteToInteger(rhs);
 
-            if (lhs instanceof BigDecimal) {
-                if (!(rhs instanceof BigDecimal))
-                    rhs = Primitive.castNumber(BigDecimal.class, rnum);
-            } else if (rhs instanceof BigDecimal) {
-                lhs = Primitive.castNumber(BigDecimal.class, lnum);
-            } else if (Types.isFloatingpoint(lhs) || Types.isFloatingpoint(rhs)) {
-                // If both arguments are Float then leave them alone
-                if (!(lhs instanceof Float && rhs instanceof Float)) {
-                    if (!(lhs instanceof Double))
-                        lhs = Double.valueOf(lnum.doubleValue());
-                    if (!(rhs instanceof Double))
-                        rhs = Double.valueOf(rnum.doubleValue());
-                }
-            } else if (lhs instanceof BigInteger) {
-                if (!(rhs instanceof BigInteger))
-                    rhs = Primitive.castNumber(BigInteger.class, rnum);
-            } else if (rhs instanceof BigInteger) {
-                lhs = Primitive.castNumber(BigInteger.class, lnum);
-            } else {
-                if (!(lhs instanceof Long))
-                    lhs = Long.valueOf(lnum.longValue());
-                if (!(rhs instanceof Long))
-                    rhs = Long.valueOf(rnum.longValue());
-            }
+        if (lhs instanceof BigDecimal) {
+            if (!(rhs instanceof BigDecimal))
+                rhs = Primitive.castNumber(BigDecimal.class, rnum);
+        } else if (rhs instanceof BigDecimal) {
+            lhs = Primitive.castNumber(BigDecimal.class, lnum);
+        } else if ((lhs instanceof Float || rhs instanceof Float)
+                && !(lhs instanceof Double || rhs instanceof Double
+                    || lhs instanceof BigInteger || rhs instanceof BigInteger)) {
+            // Float with Java integral types uses float arithmetic. Preserve
+            // the existing double promotion for the BigInteger extension.
+            if (!(lhs instanceof Float))
+                lhs = Float.valueOf(lnum.floatValue());
+            if (!(rhs instanceof Float))
+                rhs = Float.valueOf(rnum.floatValue());
+        } else if (Types.isFloatingpoint(lhs) || Types.isFloatingpoint(rhs)) {
+            if (!(lhs instanceof Double))
+                lhs = Double.valueOf(lnum.doubleValue());
+            if (!(rhs instanceof Double))
+                rhs = Double.valueOf(rnum.doubleValue());
+        } else if (lhs instanceof BigInteger) {
+            if (!(rhs instanceof BigInteger))
+                rhs = Primitive.castNumber(BigInteger.class, rnum);
+        } else if (rhs instanceof BigInteger) {
+            lhs = Primitive.castNumber(BigInteger.class, lnum);
+        } else {
+            if (!(lhs instanceof Long))
+                lhs = Long.valueOf(lnum.longValue());
+            if (!(rhs instanceof Long))
+                rhs = Long.valueOf(rnum.longValue());
+        }
 
         return new Object[] { lhs, rhs };
     }
