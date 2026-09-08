@@ -363,9 +363,9 @@ class Types {
             return true;
 
         // null rhs type corresponds to type of Primitive.NULL
-        // assignable to any object type but not array
+        // assignable to any reference type, including an array.
         if (rhsType == null)
-            return !lhsType.isPrimitive() && !lhsType.isArray();
+            return !lhsType.isPrimitive();
 
         // prim numeric type can be boxed and assigned to number
         if ( lhsType == Number.class

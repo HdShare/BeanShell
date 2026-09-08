@@ -55,6 +55,26 @@ public class NullVarargsTest {
         public static boolean same(Object expected, Object... args) { return expected == args; }
     }
 
+    public static class SuperTarget extends Target {
+        public SuperTarget() { super(); }
+    }
+    public static class ArraySource {
+        public Object[] value() { return null; }
+    }
+    public static class ObjectSource {
+        public Object value() { return null; }
+    }
+    public static class Outer {
+        public class Inner extends Target {
+            public Inner(Object... args) { super(args); }
+        }
+    }
+    public static class Constructors {
+        public final String selected;
+        public Constructors(Object arg) { selected = "Object"; }
+        public Constructors(Object... args) { selected = "Object[]:" + Target.objects(args); }
+    }
+
     private void compare(Object expected, String script) throws Exception {
         for (boolean strict : new boolean[] {false, true}) {
             Interpreter interpreter = new Interpreter();
@@ -94,6 +114,9 @@ public class NullVarargsTest {
         compare("null-array", "Target.objects(Target.staticArray)");
         compare("null-array", "Object[][] arrays = {null}; Target.objects(arrays[0])");
         compare("[null]", "Object[] objects = {null}; Target.objects(objects[0])");
+        compare("[null]", "Object[] values = new Object[1][]; Target.objects(values[0])");
+        compare("[null]", "Object[] values = new Object[1][]; Target.objects(((Object[])values)[0])");
+        compare("null-array", "Object[][] values = new Object[1][]; Target.objects(values[0])");
     }
 
     @Test public void return_types_and_imports() throws Exception {
@@ -129,6 +152,34 @@ public class NullVarargsTest {
         compare("[1, 2]", "Target.objects(1, 2)");
         compare("[]", "Target.ints()");
         compare("Object[]:[a]", "Object value = new Object[]{\"a\"}; Target.overloaded(value)");
+    }
+
+    @Test public void constructor_overloads_and_inner_classes() throws Exception {
+        String imports = "import bsh.NullVarargsTest.Constructors; import bsh.NullVarargsTest.Outer; ";
+        compare(new Constructors((Object[]) null).selected, imports + "new Constructors(null).selected");
+        compare(new Constructors((Object) null).selected, imports + "new Constructors((Object)null).selected");
+        compare("null-array", imports + "Outer outer = new Outer(); outer.new Inner(array).result()");
+        compare("[null]", imports + "Outer outer = new Outer(); outer.new Inner(object).result()");
+    }
+
+    @Test public void cached_calls_with_different_return_types() throws Exception {
+        compare("null-array[null]null-array[null]", "import bsh.NullVarargsTest.ArraySource; import bsh.NullVarargsTest.ObjectSource; "
+                + "String call(Object value) { return Target.objects(value.value()); } "
+                + "call(new ArraySource()) + call(new ObjectSource()) + call(new ArraySource()) + call(new ObjectSource())");
+    }
+
+    @Test public void qualified_script_methods_and_super_calls() throws Exception {
+        compare("[null]", "Object getObject() { return null; } Target.objects(this.getObject())");
+        compare("null-array", "Object[] getArray() { return null; } Target.objects(this.getArray())");
+        compare("[null]", "import bsh.NullVarargsTest.SuperTarget; class Child extends SuperTarget { String call() { return super.instance((Object)null); } } new Child().call()");
+        compare("null-array", "import bsh.NullVarargsTest.SuperTarget; class Child extends SuperTarget { String call() { return super.instance((Object[])null); } } new Child().call()");
+    }
+
+    @Test public void safe_navigation_and_non_null_dispatch() throws Exception {
+        Interpreter interpreter = new Interpreter();
+        assertEquals("null-array", interpreter.eval("import bsh.NullVarargsTest.Target; Target target = null; Target.objects(target?.array)"));
+        compare("Object[]:[a]", "Target.overloaded((Object)new Object[]{\"a\"})");
+        compare("Object", "Target.overloaded(\"a\")");
     }
 
     @Test public void direct_invocable_null_argument_list() throws Exception {
