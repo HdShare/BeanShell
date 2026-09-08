@@ -17,17 +17,25 @@ jobs:
       matrix:
         java: [ '8', '11', '17', '21' ]
 
-    name: Java ${{ matrix.java }} build
+    name: Java ${{ matrix.java }} tests (JDK 17 build)
     steps:
     - uses: actions/checkout@v4
-    - name: Setup Java
+    - name: Setup test Java
       uses: actions/setup-java@v2
       with:
         java-version: ${{ matrix.java }}
         distribution: 'adopt'
         cache: maven
-    - name: Build with Maven
-      run: mvn -B verify package --file pom.xml
+    - name: Record test Java
+      run: echo "TEST_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+    - name: Setup build Java
+      uses: actions/setup-java@v2
+      with:
+        java-version: '17'
+        distribution: 'adopt'
+        cache: maven
+    - name: Build and test with Maven
+      run: mvn -B clean verify --file pom.xml -Djvm="$TEST_JAVA_HOME/bin/java"
     - name: Codecov
       uses: codecov/codecov-action@v4
       env:
