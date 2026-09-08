@@ -11,51 +11,55 @@ version-specific comparisons.
 The following changes were still unmerged on 8 September 2026. These notices
 describe the linked PRs, not a released version or a combined build of them.
 
-- **Build JDK versus runtime JDK (#791):** Building BeanShell requires JDK 17 or
-  newer for `ph-javacc-maven-plugin` 5.0.2. The resulting JAR targets Java 8; the
-  build-JDK requirement does not raise the runtime baseline. The released
-  generator fixes long-token buffer growth/wrapping, so post-generation source
-  patching is removed. The PR artifact was built on JDK 17 and tested with Java
-  8, 11, 17, and 21. [#791](https://github.com/beanshell/beanshell/pull/791)
+- **Build and runtime JDK (#791):** The parser generator
+  `ph-javacc-maven-plugin` 5.0.2 needs JDK 17 or newer. The JAR targets
+  Java 8 and still runs on Java 8. The released generator fixes buffer growth
+  and wrapping for long tokens. The build no longer patches the generated
+  parser source. We built the PR artifact on JDK 17. We tested it with Java 8, 11,
+  17, and 21. [#791](https://github.com/beanshell/beanshell/pull/791)
 - **Version metadata resource (#790):** The packaged resource moves from root
-  `version.properties` to `bsh/version.properties`, avoiding collisions with
-  other JARs. Integrations that directly read the old path must update it.
-  Prefer `Interpreter.VERSION` when the reported BeanShell version is needed.
-  The Maven and Ant resource destinations are both updated.
+  `version.properties` to `bsh/version.properties`. This prevents collisions
+  with other JARs. If your integration reads this resource directly, update
+  the path. To get the BeanShell version, use `Interpreter.VERSION`.
+  Both Maven and Ant use the new resource destination.
   [#790](https://github.com/beanshell/beanshell/pull/790)
 - **Parser comment APIs and bshdoc (#794):** Formal comments become special
-  tokens instead of `BSHFormalComment` AST nodes. Parser consumers should use
+  tokens instead of `BSHFormalComment` AST nodes. To read comments before an
+  AST node, use
   `Parser.getFormalCommentsBeforeNode(node)` or
-  `Parser.getAllCommentsBeforeNode(node)`. For trailing comments attached to
-  EOF, use `Parser.getFormalCommentsBeforeToken(parser.getToken(0))` after the
-  parsing loop. `BSHFormalComment`, `ParserConstants.FORMAL_COMMENT`, and the
-  generated formal-comment node entry are removed. The `bshdoc` script restores
-  file and method documentation, accepts a first file comment attached to EOF
-  (including comment-only files), and stops printing debug messages to stderr.
-  Its list helper changes from `bshdoc(String[])` to `bshdocl(String[])`; the command-line form
+  `Parser.getAllCommentsBeforeNode(node)`. After the parsing loop, use
+  `Parser.getFormalCommentsBeforeToken(parser.getToken(0))` for formal comments
+  attached to the end-of-file (EOF) token. The PR removes `BSHFormalComment`,
+  `ParserConstants.FORMAL_COMMENT`, and the node entry for formal comments.
+
+  The `bshdoc` script includes file and method documentation. It accepts a
+  first file comment attached to EOF. This also works for files that contain
+  only comments. It no longer prints debug messages to stderr. Its list helper
+  changes from `bshdoc(String[])` to `bshdocl(String[])`. The command-line form
   `bshdoc file [file ...]` remains the same.
   [#794](https://github.com/beanshell/beanshell/pull/794)
-- **Generated array parameter signatures (#793):** Brackets on the parameter
-  name are included in JVM method and constructor descriptors. For example,
-  `String values[]` is reflected as `String[]`, and `String[] values[]` as
-  `String[][]`. Java reflection code must request the complete parameter type.
-  The script-facing overload changes are covered in the migration guide.
+- **Signatures for array parameters (#793):** BeanShell uses dimensions from
+  brackets after the parameter name to create JVM method and constructor
+  descriptors. For example, Java reflection reports `String values[]` as
+  `String[]` and `String[] values[]` as `String[][]`. For Java reflection, use
+  the complete parameter type. The migration guide describes the changes to
+  overloads in scripts.
   [#793](https://github.com/beanshell/beanshell/pull/793)
 
 Other fixes do not require script migration steps:
 
-- Update bundled ASM to 9.10.1 and preserve generated constructors across
-  long-jump rewriting, retaining the relocated package and Java 8 target.
+- The PR updates bundled ASM to 9.10.1. Generated constructors still work after
+  long-jump rewriting. The relocated package and Java 8 target remain the same.
   [#788](https://github.com/beanshell/beanshell/pull/788)
-- Preserve replacement cache entries during stale-reference cleanup and defer
-  member-cache initialization until reflection metadata is needed. These are
-  correctness fixes; no performance benefit is asserted here.
+- The PR keeps replacement cache entries during stale-reference cleanup. The
+  member cache initializes only when BeanShell needs reflection metadata. These
+  fixes address correctness. We make no claim about performance.
   [#789](https://github.com/beanshell/beanshell/pull/789)
-- Correct long-token parsing and permit formal comments within statements.
+- The PRs correct long-token parsing and permit formal comments within statements.
   [#791](https://github.com/beanshell/beanshell/pull/791),
   [#794](https://github.com/beanshell/beanshell/pull/794)
-- Restore numeric reference casts and boxed unary operations; optional
-  workaround removal is described in the migration guide.
+- The PRs correct numeric reference casts and boxed unary operations. The migration
+  guide explains how to remove the associated workarounds.
   [#792](https://github.com/beanshell/beanshell/pull/792),
   [#795](https://github.com/beanshell/beanshell/pull/795)
 
