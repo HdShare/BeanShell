@@ -55,6 +55,7 @@
     <version.jdk>1.8</version.jdk>
     <maven.compiler.source>${version.jdk}</maven.compiler.source>
     <maven.compiler.target>${version.jdk}</maven.compiler.target>
+    <maven.compiler.release>8</maven.compiler.release>
   </properties>
 
   <scm>
@@ -167,7 +168,7 @@
       <plugin>
         <groupId>com.helger.maven</groupId>
         <artifactId>ph-javacc-maven-plugin</artifactId>
-        <version>4.1.5</version>
+        <version>5.0.2</version>
         <executions>
           <execution>
             <id>javacc</id>
@@ -179,39 +180,6 @@
               <javadocFriendlyComments>true</javadocFriendlyComments>
               <static>false</static>
               <usercharstream>true</usercharstream>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-antrun-plugin</artifactId>
-        <version>3.1.0</version>
-        <executions>
-          <execution>
-            <id>fix-charstream-buffer-growth</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>run</goal>
-            </goals>
-            <configuration>
-              <target>
-                <!-- ParserGeneratorCC 1.1.4 shares maxNextCharInd between two
-                     separate buffers. Give JavaCharStream its own input-buffer
-                     limit so token-buffer growth and wrapping cannot change it.
-                     Reset the new limit when reinitializing the stream (#734/#743).
-                     https://github.com/tulipcc/ParserGeneratorCC/issues/33 -->
-                <replace file="${project.build.directory}/generated-sources/javacc/bsh/JavaCharStream.java"
-                         token="private int nextCharInd = -1;"
-                         value="private int nextCharInd = -1, nextCharLimit = 0;"
-                         encoding="UTF-8"/>
-                <replace file="${project.build.directory}/generated-sources/javacc/bsh/JavaCharStream.java"
-                         token="maxNextCharInd" value="nextCharLimit" encoding="UTF-8"/>
-                <replaceregexp file="${project.build.directory}/generated-sources/javacc/bsh/JavaCharStream.java"
-                               match="nextCharInd = -1;(\s*)m_aIS = dstream;"
-                               replace="nextCharInd = -1;\1nextCharLimit = 0;\1m_aIS = dstream;"
-                               encoding="UTF-8"/>
-              </target>
             </configuration>
           </execution>
         </executions>
