@@ -315,9 +315,19 @@ public class Parser
      * @param node the node of interest
      */
     public static List<String> getFormalCommentsBeforeNode(SimpleNode node) {
+        return getFormalCommentsBeforeToken(node == null ? null : node.firstToken);
+    }
+
+    /**
+     * Return formal comments attached to a token in source order.
+     * This also supports EOF, which has no corresponding AST node.
+     * @param token the token following the comments, or null
+     * @return the preceding formal comments
+     */
+    public static List<String> getFormalCommentsBeforeToken(Token token) {
         ArrayList<String> list = new ArrayList<String>();
-        if (node != null && node.firstToken != null) {
-            Token t = node.firstToken;
+        if (token != null) {
+            Token t = token;
             if (t.specialToken != null) {
                 while (t.specialToken != null)
                     t = t.specialToken;

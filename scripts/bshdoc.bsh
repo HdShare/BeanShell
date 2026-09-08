@@ -136,6 +136,10 @@ bshdoc( filename )
             print("</Method>");
         }
     }
+    // Trailing comments belong to EOF, which has no AST node.
+    formalComments = parser.getFormalCommentsBeforeToken(parser.getToken(0));
+    if ( firstComment == null && formalComments.size() > 0 )
+        firstComment = formalComments.get(0);
     if ( firstComment != null ) {
         tab();
         printComment(firstComment);
