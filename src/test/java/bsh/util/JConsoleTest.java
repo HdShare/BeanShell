@@ -79,4 +79,16 @@ public class JConsoleTest {
 
         assertTrue(documentText(text), documentText(text).endsWith("\nbsh % pr"));
     }
+
+    @Test
+    public void added_history_is_recalled_with_up_arrow() throws Exception {
+        JConsole console = new JConsole();
+        JTextPane text = textPane(console);
+        console.print("bsh % ");
+        console.addHistory("preloaded();");
+
+        press(console, KeyEvent.VK_UP);
+
+        assertTrue(documentText(text), documentText(text).endsWith("bsh % preloaded();"));
+    }
 }

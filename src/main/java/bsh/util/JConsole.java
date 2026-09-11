@@ -455,6 +455,10 @@ public class JConsole extends JScrollPane
         return s;
     }
 
+    public synchronized void addHistory(String line) {
+        history.add(line);
+    }
+
     private void historyUp() {
         if ( history.size() == 0 )
             return;
