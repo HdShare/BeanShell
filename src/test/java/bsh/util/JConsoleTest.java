@@ -7,6 +7,8 @@ import java.awt.event.KeyEvent;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.swing.JTextPane;
 import javax.swing.text.BadLocationException;
@@ -90,5 +92,35 @@ public class JConsoleTest {
         press(console, KeyEvent.VK_UP);
 
         assertTrue(documentText(text), documentText(text).endsWith("bsh % preloaded();"));
+    }
+
+    @Test
+    public void close_terminates_pipe_writer_thread() throws Exception {
+        Set<Thread> before = pipeWriterThreads();
+        JConsole console = new JConsole();
+        JTextPane text = textPane(console);
+        console.print("bsh % ");
+        typeCommand(text, "x=1");
+        press(console, KeyEvent.VK_ENTER); // submit to the pipe writer
+        // Wait for the writer thread to appear (it is created lazily).
+        Set<Thread> during = before;
+        for (int i = 0; i < 50 && during.equals(before); i++) {
+            Thread.sleep(100);
+            during = pipeWriterThreads();
+        }
+        console.close();
+        // await termination with retries
+        Set<Thread> after = pipeWriterThreads();
+        for (int i = 0; i < 50 && !after.equals(before); i++) {
+            Thread.sleep(100);
+            after = pipeWriterThreads();
+        }
+        assertEquals("pipe writer thread leaked after close", before, after);
+    }
+
+    private static Set<Thread> pipeWriterThreads() {
+        return Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> "JConsole pipe writer".equals(t.getName()) && t.isAlive())
+                .collect(Collectors.toSet());
     }
 }

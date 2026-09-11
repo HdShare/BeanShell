@@ -44,11 +44,19 @@ final class StacklessEofReader extends FilterReader {
     // JavaCharStream turns -1 into a new IOException, whose stack trace costs time proportional to stack depth.
     @Override
     public int read(char[] buf, int off, int len) throws IOException {
-        if (null != endOfInput)
-            throw endOfInput;
+        if (null != endOfInput) {
+            // The caller may have reset or replaced the underlying reader, so
+            // try a real read before rethrowing the cached EOF exception.
+            int count = in.read(buf, off, len);
+            if (-1 == count)
+                throw endOfInput;
+            endOfInput = null;
+            return count;
+        }
         int count = in.read(buf, off, len);
         if (-1 == count) {
-            in.close();
+            // Do not close the underlying reader: it is owned by the caller and
+            // may need to be reused, reset, or may have already been closed.
             endOfInput = new EndOfInput();
             throw endOfInput;
         }

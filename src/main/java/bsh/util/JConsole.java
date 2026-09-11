@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import javax.swing.Icon;
 import javax.swing.JMenuItem;
@@ -81,7 +82,7 @@ import bsh.FileReader;
 */
 public class JConsole extends JScrollPane
     implements GUIConsoleInterface, Runnable, KeyListener,
-    MouseListener, ActionListener, PropertyChangeListener
+    MouseListener, ActionListener, PropertyChangeListener, AutoCloseable
 {
     private final static String CUT = "Cut";
     private final static String COPY = "Copy";
@@ -841,6 +842,24 @@ public class JConsole extends JScrollPane
     }
 
     private int textLength() { return text.getDocument().getLength(); }
+
+    /**
+     * Terminate background threads and release resources. JConsole should be
+     * closed when it is no longer needed so the pipe writer thread is not left
+     * running. Implements {@link AutoCloseable} so callers can use
+     * try-with-resources.
+     */
+    @Override
+    public void close() {
+        pipeWriter.shutdown();
+        try {
+            if (!pipeWriter.awaitTermination(5, TimeUnit.SECONDS))
+                pipeWriter.shutdownNow();
+        } catch (InterruptedException e) {
+            pipeWriter.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
 
 }
 

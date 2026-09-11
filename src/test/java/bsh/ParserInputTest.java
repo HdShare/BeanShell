@@ -47,8 +47,10 @@ public class ParserInputTest {
         TrackingReader in = new TrackingReader("x = 1;\ny = x + 1;\n");
         interpreter.eval(in, interpreter.getNameSpace(), "test");
         assertEquals(Integer.valueOf(2), interpreter.get("y"));
-        assertTrue("input closed at end of stream", in.closed);
-        assertEquals("reads after end of stream", 0, in.readsAfterEnd);
+        assertTrue("eval should not close a reader it does not own", !in.closed);
+        // The wrapper probes the underlying reader once after EOF to support
+        // resettable/reusable readers.
+        assertEquals("reads after end of stream", 1, in.readsAfterEnd);
     }
 
     @Test
@@ -62,7 +64,7 @@ public class ParserInputTest {
             fail("Expected end of input");
         } catch (IOException end) {
             assertEquals(0, end.getStackTrace().length);
-            assertTrue("source closed at end of input", source.closed);
+            assertTrue("source should be closed by caller, not by wrapper", !source.closed);
             try {
                 in.read(buf, 0, buf.length);
                 fail("Expected end of input");
@@ -70,7 +72,46 @@ public class ParserInputTest {
                 assertSame(end, again);
             }
         }
-        assertEquals("reads after end of stream", 0, source.readsAfterEnd);
+        // The wrapper probes the underlying reader again after EOF to support
+        // resettable readers, so one extra read after end is expected.
+        assertEquals("reads after end of stream", 1, source.readsAfterEnd);
         assertSame(in, StacklessEofReader.wrap(in));
+    }
+
+    @Test
+    public void underlying_reader_can_be_reused_after_stackless_eof() throws Exception {
+        StringReader source = new StringReader("x = 1;\ny = 2;\n");
+        Reader wrapped = StacklessEofReader.wrap(source);
+        char[] buf = new char[64];
+        // drain first parse: the wrapper signals EOF by throwing IOException
+        drain(wrapped, buf);
+        // reset and drain again: the wrapper must not have closed source
+        source.reset();
+        assertEquals("x = 1;\ny = 2;\n", drain(wrapped, buf));
+    }
+
+    private static String drain(Reader in, char[] buf) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        try {
+            int n;
+            while ((n = in.read(buf, 0, buf.length)) != -1)
+                sb.append(buf, 0, n);
+        } catch (IOException eof) {
+            // StacklessEofReader signals end of input with an IOException.
+        }
+        return sb.toString();
+    }
+
+    @Test
+    public void interpreter_can_eval_twice_from_reusable_reader() throws Exception {
+        Interpreter interpreter = new Interpreter();
+        StringReader in = new StringReader("a = 1;\nb = 2;\n");
+        interpreter.eval(in, interpreter.getNameSpace(), "test1");
+        assertEquals(Integer.valueOf(1), interpreter.get("a"));
+        assertEquals(Integer.valueOf(2), interpreter.get("b"));
+        in.reset();
+        interpreter.eval(in, interpreter.getNameSpace(), "test2");
+        assertEquals(Integer.valueOf(1), interpreter.get("a"));
+        assertEquals(Integer.valueOf(2), interpreter.get("b"));
     }
 }
