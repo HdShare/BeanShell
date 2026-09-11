@@ -56,6 +56,21 @@ public class DesktopCommandTest {
     }
 
     @Test
+    public void shutdown_unsets_desktop_without_exiting_jvm() throws Exception {
+        bsh.eval(TestUtil.script(
+            "bsh.system.shutdownOnExit = false;",
+            "mockFrame() {",
+            "    setVisible(boolean b) {}",
+            "    dispose() {}",
+            "    return this;",
+            "}",
+            "bsh.system.desktop.frame = mockFrame();",
+            "bsh.system.desktop.shutdown();"
+        ));
+        assertEquals(Boolean.FALSE, bsh.eval("bsh.system.desktop != void"));
+    }
+
+    @Test
     public void popup_shows_only_for_popup_trigger() throws Exception {
         Object calls = bsh.eval(TestUtil.script(
             "import java.awt.event.MouseEvent;",

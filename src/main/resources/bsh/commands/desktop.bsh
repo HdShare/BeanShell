@@ -154,8 +154,9 @@ desktop()
         if ( ret == JOptionPane.YES_OPTION )
                 exit();
         */
+        frame.setVisible(false);
         frame.dispose();
-        exit();
+        unset("bsh.system.desktop");
     }
 
     actionPerformed( e )
@@ -197,7 +198,6 @@ desktop()
     frame.getContentPane().add(stage);
 
     windowClosing( e ) {
-        bsh.system.desktop = null;
         shutdown();
     }
 
