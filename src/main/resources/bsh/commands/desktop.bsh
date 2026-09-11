@@ -72,9 +72,11 @@ desktop()
     taskBarButtonListener() {
         actionPerformed(ae) {
             this.iframe=frameMap.get(ae.source);
+            if(iframe==null)
+                return;
             if(iframe.icon)
                 iframe.icon=false;
-            if(iframe!=null && !iframe.selected)
+            if(!iframe.selected)
                 iframe.selected=true;
         }
 
@@ -133,7 +135,16 @@ desktop()
     this.windowCount=0;
 
     mousePressed( e ) {
-        popup.show( pane, e.getX(), e.getY() );
+        maybeShowPopup( e );
+    }
+
+    mouseReleased( e ) {
+        maybeShowPopup( e );
+    }
+
+    maybeShowPopup( e ) {
+        if ( e.isPopupTrigger() )
+            popup.show( pane, e.getX(), e.getY() );
     }
 
     shutdown() {
