@@ -298,12 +298,8 @@ public class JConsole extends JScrollPane
                 break;
 
             case KeyEvent.VK_TAB :
-                if (e.getID() == KeyEvent.KEY_RELEASED) {
-                    String part = text.getText();
-                    if ( null == part )
-                        break;
-                    doCommandCompletion( part.substring( cmdStart ) );
-                }
+                if (e.getID() == KeyEvent.KEY_RELEASED)
+                    doCommandCompletion( getCmd() );
                 e.consume();
                 break;
 
@@ -368,13 +364,15 @@ public class JConsole extends JScrollPane
 
         // Found ambiguous, show (some of) them
 
-        String line = text.getText();
-        if ( null == line )
-            line = "";
-        String command = line.substring( cmdStart );
-        // Find prompt
-        for(i=cmdStart; line.charAt(i) != '\n' && i > 0; i--);
-        String prompt = line.substring( i+1, cmdStart );
+        String command = getCmd();
+        String prompt = "";
+        try {
+            String before = text.getText(0, cmdStart);
+            prompt = before.substring( before.lastIndexOf('\n') + 1 );
+        } catch (BadLocationException e) {
+            // should not happen
+            System.out.println("Internal JConsole Error: "+e);
+        }
 
         // Show ambiguous
         StringBuilder sb = new StringBuilder("\n");
