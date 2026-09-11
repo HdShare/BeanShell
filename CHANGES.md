@@ -26,6 +26,22 @@ Passing a bare `null` to a Java varargs method or constructor now passes a null 
 
 An error that escapes a `try` block uncaught, whether through `finally` or because no `catch` matches, is now reported at the line where it occurred instead of at the `try` statement (#726).
 
+Fixed two defects in the `desktop()` command reported by gary_nunes (#416): the taskbar button listener used its frame before checking it for null, so an action from a button with no registered frame threw a `NullPointerException`; and the desktop's context menu opened on any mouse press. It now opens only on the platform's popup trigger, checked on both press and release as `MouseEvent.isPopupTrigger()` requires for cross-platform behavior.
+
+Calling an overloaded method of a scripted class or enum with a variable that is declared as a reference type but holds `null` now selects the overload for the declared type, as compiled Java does (#150): `Object o = null; x.test(o)` calls `test(Object)` rather than `test(Integer)`. Java code that calls a specific method of a generated class, such as `test(Object)`, now runs that scripted overload for any argument; previously the argument's runtime type could re-select `test(Integer)`. In script code, overload selection for non-null values is unchanged.
+
+Tab completion in the Swing console (`JConsole`) no longer corrupts the command line when several completions are shown (#292). With Windows line endings the command boundary drifted into the prompt, so pressing Enter sent part of the prompt to the interpreter, and a prompt on the first line was reprinted without its first character.
+
+Pressing Enter after pasting a large block of code into the Swing console (`JConsole`) no longer freezes it (#585). The command was written into the interpreter's input pipe on the Swing event thread; once the 64 KB pipe filled, the event thread waited for the interpreter to read more, while the interpreter waited for the event thread to print its output. Commands are now written to the pipe on a separate thread, in order.
+
+`JConsole.addHistory(String)` adds a line to the Swing console's command history, so applications can preload commands that the user recalls with the up arrow (#405).
+
+Fixed scripted classes whose subclass has the same simple name as its superclass, for example `a.b.A extends a.A`: calling an inherited method threw `NullPointerException` because the superclass's instance state was never initialized (#383). Also, a non-varargs Java method with only one overload is no longer selected for a call with more arguments than it accepts. Such a call now reports the method as not found instead of throwing `ArrayIndexOutOfBoundsException`, so a scripted class method such as `print()` no longer hides the `print` command when called with an argument.
+
+Scripts evaluated from deep call stacks no longer slow down in proportion to the stack depth (#551). Reaching the end of each evaluated script created exceptions whose stack traces grew with the caller's stack; the interpreter now signals end of input to the parser with a reused exception that carries no stack trace. In a benchmark of 5,000 `eval("'abc'+'def'")` calls at a stack depth of 1,000 on Java 8, the time dropped from about 115 ms to 17 ms, the same as at depth 0.
+
+Fixed a parse error when a method-call argument, wrapped in extra parentheses, contained an anonymous class declaring a method with a class return type, for example `print(((String) new Supplier() { public Object get() { return "2"; }}.get()));` (#423).
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions
