@@ -21,11 +21,13 @@
 package bsh;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.lang.ref.WeakReference;
+import java.nio.file.Files;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -337,6 +339,26 @@ public class InterpreterTest {
             assertTrue(Interpreter.DEBUG.get());
         } finally {
             Interpreter.DEBUG.set(false);
+        }
+    }
+
+    @Test
+    public void setOutputFile_redirects_only_this_interpreter() throws Exception {
+        File file = File.createTempFile("bsh-setOutputFile", ".out");
+        file.deleteOnExit();
+        PrintStream sysOut = System.out;
+        PrintStream sysErr = System.err;
+        try {
+            Interpreter bsh = new Interpreter();
+            bsh.setOutputFile(file.getAbsolutePath());
+            bsh.println("hello from interpreter");
+            bsh.getOut().flush();
+            assertSame(sysOut, System.out);
+            assertSame(sysErr, System.err);
+            String content = new String(Files.readAllBytes(file.toPath()));
+            assertThat(content, containsString("hello from interpreter"));
+        } finally {
+            file.delete();
         }
     }
 

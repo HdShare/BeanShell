@@ -50,6 +50,8 @@ Packaged the ASM library's BSD-3-Clause license notice into the binary JAR at `M
 
 Fixed a `ThreadLocal` state leak in `Interpreter.DEBUG` (#785): debug mode enabled on one `Interpreter` could remain enabled for later, unrelated `Interpreter` instances that happen to run on the same pooled thread. A new top-level `Interpreter` now starts with a clean debug state; debug mode toggled with the `debug()` command still persists normally across statements and sourced/child evaluations within the same interpreter's session.
 
+Added `Interpreter.setOutputFile(String)` to redirect a specific interpreter's own output and error streams to a file without touching `System.out`/`System.err` (#516). The existing static `Interpreter.redirectOutputToFile(String)`, despite its name, always redirected the JVM-wide system streams rather than any particular interpreter; it is now deprecated in favor of the new instance method.
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions

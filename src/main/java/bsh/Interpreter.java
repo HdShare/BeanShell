@@ -1095,6 +1095,16 @@ public class Interpreter
         return new File( file.getCanonicalPath() );
     }
 
+    /**
+        Redirect the JVM-wide {@code System.out} / {@code System.err} to a
+        file. This does not affect any particular {@code Interpreter}
+        instance's own output (see {@link #getOut()}); despite its name and
+        signature it is unrelated to a specific interpreter.
+        @param filename file to write output to.
+        @deprecated redirects global JVM streams rather than any specific
+            interpreter's own streams. Use {@link #setOutputFile(String)} to
+            redirect a particular interpreter's output. */
+    @Deprecated
     public static void redirectOutputToFile( String filename )
     {
         try {
@@ -1105,6 +1115,23 @@ public class Interpreter
             System.setErr( pout );
         } catch ( IOException e ) {
             System.err.println("Can't redirect output to file: "+filename );
+        }
+    }
+
+    /**
+        Redirect this interpreter's own output and error streams to a file,
+        leaving {@code System.out} / {@code System.err} untouched.
+        @param filename file to write output to. */
+    public void setOutputFile( String filename )
+    {
+        try {
+            @SuppressWarnings("resource")
+            PrintStream pout = new PrintStream(
+                new FileOutputStream( filename ), true, "UTF-8");
+            setOut( pout );
+            setErr( pout );
+        } catch ( IOException e ) {
+            error("Can't redirect output to file: "+filename );
         }
     }
 
