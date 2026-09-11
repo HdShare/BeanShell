@@ -647,10 +647,11 @@ void MethodDeclaration() #MethodDeclaration :
 {
     mods = Modifiers( Modifiers.METHOD, false ) { if (null != mods) jjtThis.modifiers = mods; }
 (
-    LOOKAHEAD( <IDENTIFIER> "(" )
+    // Typed first: nested lookahead is skipped while scanning, so each branch must discriminate by itself.
+    LOOKAHEAD( ReturnType() <IDENTIFIER> )
+    ReturnType()
     t = <IDENTIFIER> { jjtThis.name = t.image; }
 |
-    ReturnType()
     t = <IDENTIFIER> { jjtThis.name = t.image; }
 )
     FormalParameters()
