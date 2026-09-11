@@ -2,7 +2,7 @@
 
 ## 3.0.0 (in progress)
 
-Work has resumed on the long-dormant 3.0 development line (`master`, JDK 8 baseline, tested through JDK 21) after a multi-year gap. This entry will grow as the release is prepared; changes so far:
+Work has resumed on the long-dormant 3.0 development line (`master`; the JAR targets Java 8 and is tested on Java 8 through 21) after a multi-year gap. This entry will grow as the release is prepared; changes so far:
 
 BeanShell could fail to start, or silently report the wrong version, when another JAR earlier on a shared classpath also provided a root-level `version.properties` (#736, #783). BeanShell's own version metadata is now packaged and loaded from a namespaced `bsh/version.properties` resource instead.
 
@@ -12,7 +12,7 @@ Fixed a method-lookup regression from BeanShell 2.0b5 where overload resolution 
 
 Fixed numeric reference casts such as `(Number) Double.valueOf(1)`, which previously threw `ClassCastException`, while preserving the original object identity across casts and assignments (#725).
 
-Fixed a parser input-buffer defect where long string literals, identifiers, or comments could corrupt the shared buffer-position counter, causing `ArrayIndexOutOfBoundsException`, parse errors, or truncated/incorrect token contents once a token crossed a buffer growth or wraparound boundary (#734, #743).
+Fixed a parser input-buffer defect where long string literals, identifiers, or comments could corrupt the parser's buffer position when a token crossed a buffer growth or wraparound boundary, causing `ArrayIndexOutOfBoundsException`, parse errors, or incorrect token contents (#734, #743). The fix comes from upgrading the parser generator (`ph-javacc-maven-plugin` 5.0.2, ParserGeneratorCC 2.0.3), so building BeanShell from source now requires JDK 17 or newer; the resulting JAR still targets Java 8.
 
 ## 2.1.1
 
