@@ -57,6 +57,8 @@ Fixed an inner class that extends its own enclosing class resolving to the wrong
 
 `bsh.SimpleNode`, the base implementation of the public `bsh.Node` AST interface, is now a public class (#730), so embedding applications can name and cast to it (for example `instanceof SimpleNode`) when walking a parsed script's syntax tree.
 
+The result of a void method call may now be assigned to an untyped or `Object`-declared variable, for example `x = voidMethod();` or `Object x = voidMethod();` (#775), instead of throwing `illegal void assignment` / `Void initializer.`. Assigning to any other declared type, any compound assignment (`x += voidMethod()`), and a bare or dotted reference to an undefined name or property (`x = undefinedVar;`, `x = obj.noSuchProperty;`) are all unchanged and still errors.
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions

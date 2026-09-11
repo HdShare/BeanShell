@@ -353,11 +353,11 @@ try {
 }
 
 try {
+    // a void method result may be assigned to an untyped variable (#775)
     void voidmethod1() { };s1=voidmethod1();
+    assertTrue("expected s1 to hold void", s1 == void);
 } catch (Exception ex) {
-    Matcher m = Pattern.compile("illegal void assignment").matcher(ex.getMessage());
-    String err = "Expected [illegal void assignment] got ["+ex.getMessage()+"]";
-    assertTrue(err,m.find());
+    assertTrue("unexpected exception: "+ex, false);
 } finally {
     flag();
 }

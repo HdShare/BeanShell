@@ -82,7 +82,9 @@ class BSHVariableDeclarator extends SimpleNode
                 value = initializer.eval( callstack, interpreter);
         }
 
-        if ( value == Primitive.VOID )
+        if ( value == Primitive.VOID && ( typeNode.getBaseType() != Object.class
+                || jjtGetNumChildren() == 0
+                || !BSHAssignment.isDefiniteVoidResult(jjtGetChild(0)) ) )
             throw new EvalException("Void initializer.", this, callstack );
 
         return value;

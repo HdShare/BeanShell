@@ -72,8 +72,17 @@ class BSHAssignment extends SimpleNode implements ParserConstants {
         // evaluate the right hand side
         Object rhs = jjtGetChild(1).eval(callstack, interpreter);
 
-        if ( rhs == Primitive.VOID )
-            throw new EvalException("illegal void assignment", this, callstack);
+        if ( rhs == Primitive.VOID ) {
+            // #775: a void method result may be `=`-assigned to an untyped
+            // or Object variable. A never-assigned variable's type reads as
+            // Void.TYPE here, not null, so that counts as untyped too.
+            Class<?> lhsType = lhs.getType();
+            boolean allowed = operator == ASSIGN
+                && ( lhsType == null || lhsType == Object.class || lhsType == Void.TYPE )
+                && isDefiniteVoidResult(jjtGetChild(1));
+            if ( !allowed )
+                throw new EvalException("illegal void assignment", this, callstack);
+        }
 
         try {
             switch( operator ) {
@@ -181,6 +190,18 @@ class BSHAssignment extends SimpleNode implements ParserConstants {
 
         throw new UtilEvalError("Non primitive value in operator: " +
             lhs.getClass() + " " + tokenImage[kind] + " " + rhs.getClass());
+    }
+
+    /** Whether an unevaluated node that produced Primitive.VOID is a genuine
+     * unqualified method call, e.g. `f()`, rather than an undefined name or
+     * property reference (`booga`, `obj.noSuchProperty`), which produce the
+     * same sentinel but aren't real void results (#775). */
+    static boolean isDefiniteVoidResult(Node node) {
+        while ( node instanceof BSHAssignment && ((BSHAssignment) node).operator == null )
+            node = node.jjtGetChild(0);
+        if ( node instanceof BSHPrimaryExpression && node.jjtGetNumChildren() == 1 )
+            node = node.jjtGetChild(0);
+        return node instanceof BSHMethodInvocation;
     }
 
     @Override
