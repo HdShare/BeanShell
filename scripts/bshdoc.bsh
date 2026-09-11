@@ -38,10 +38,6 @@
 import bsh.*;
 import java.util.regex.*;
 
-// The ASTs are not currently public. We'll probably move them to another
-// package soon to do that.
-setAccessibility(true);
-
 // Trivial support for formatting the XML
 tabs=0;
 tab() { super.tabs++; }
