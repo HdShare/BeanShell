@@ -50,6 +50,8 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.swing.Icon;
 import javax.swing.JMenuItem;
@@ -85,7 +87,13 @@ public class JConsole extends JScrollPane
     private final static String COPY = "Copy";
     private final static String PASTE = "Paste";
 
-    private OutputStream outPipe;
+    private volatile OutputStream outPipe;
+    // Pipe writes stay off the event thread: with a full pipe, a reader printing to the console deadlocks it.
+    private final ExecutorService pipeWriter = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "JConsole pipe writer");
+        t.setDaemon(true);
+        return t;
+    });
     private InputStream inPipe;
     private InputStream in;
     private PrintStream out;
@@ -502,15 +510,24 @@ public class JConsole extends JScrollPane
 
         if (outPipe == null )
             print("Console internal error: cannot output ...", Color.red);
-        else
-            try {
-                outPipe.write( line.getBytes(StandardCharsets.UTF_8) );
-                outPipe.flush();
-            } catch ( IOException e ) {
-                outPipe = null;
-                throw new RuntimeException("Console pipe broken...");
-            }
+        else {
+            final byte[] bytes = line.getBytes(StandardCharsets.UTF_8);
+            pipeWriter.execute(() -> writeToPipe(bytes));
+        }
         //text.repaint();
+    }
+
+    private void writeToPipe(byte[] bytes) {
+        OutputStream pipe = outPipe;
+        if (pipe == null)
+            return;
+        try {
+            pipe.write(bytes);
+            pipe.flush();
+        } catch ( IOException e ) {
+            outPipe = null;
+            print("Console pipe broken...\n", Color.red);
+        }
     }
 
     public void println(Object o) {
