@@ -534,8 +534,7 @@ public class BshMethod implements Serializable, Cloneable, BshClassManager.Liste
 
         // when cloning a generated class deep copy This reference #421
         if ("clone".equals(getName())) {
-            String className = ret.getClass().getSimpleName();
-            This thiz = Reflect.getClassInstanceThis(ret, className);
+            This thiz = Reflect.getClassInstanceThis(ret, ret.getClass());
             if (null != thiz) // not a generated class instance
                 return thiz.cloneMethodImpl(callerInfo, callstack, ret);
         }

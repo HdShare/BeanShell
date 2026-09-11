@@ -1014,9 +1014,11 @@ public final class Reflect {
      * @return the class instance This object or null if the object has not
      * been initialized.
      */
-    public static This getClassInstanceThis(Object instance, String className) {
+    public static This getClassInstanceThis(Object instance, Class<?> genClass) {
         try {
-            Object o = getObjectFieldValue(instance, BSHTHIS + className);
+            // Resolve on genClass itself: a subclass may declare a holder with the same simple name.
+            Object o = getFieldValue(genClass, instance,
+                BSHTHIS + genClass.getSimpleName(), false/*onlystatic*/);
             return (This) Primitive.unwrap(o); // unwrap Primitive.Null to null
         } catch (Exception e) {
             throw new InterpreterError("Generated class: Error getting This " + e, e);
@@ -1051,7 +1053,7 @@ public final class Reflect {
         try {
             if (object instanceof Proxy)
                 return getThisNS(type.getInterfaces()[0]);
-            return getClassInstanceThis(object, type.getSimpleName()).namespace;
+            return getClassInstanceThis(object, type).namespace;
         } catch (Exception e) {
             return null;
         }

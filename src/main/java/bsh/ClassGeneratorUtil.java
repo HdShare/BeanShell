@@ -377,9 +377,9 @@ public class ClassGeneratorUtil implements Opcodes {
         cv.visitVarInsn(ILOAD, 2);
         cv.visitMethodInsn(INVOKESPECIAL, "java/lang/Enum", "<init>", "(Ljava/lang/String;I)V", false);
         cv.visitVarInsn(ALOAD, 0);
-        cv.visitLdcInsn(className);
+        cv.visitLdcInsn(Type.getType(classDescript));
         generateParameterReifierCode(new String[0], false/*isStatic*/, cv);
-        cv.visitMethodInsn(INVOKESTATIC, "bsh/This", "initInstance", "(Lbsh/GeneratedClass;Ljava/lang/String;[Ljava/lang/Object;)V", false);
+        cv.visitMethodInsn(INVOKESTATIC, "bsh/This", "initInstance", "(Lbsh/GeneratedClass;Ljava/lang/Class;[Ljava/lang/Object;)V", false);
         cv.visitInsn(RETURN);
         cv.visitMaxs(0, 0);
     }
@@ -484,14 +484,14 @@ public class ClassGeneratorUtil implements Opcodes {
         // push 'this'
         cv.visitVarInsn(ALOAD, 0);
 
-        // Push the class/constructor name as a constant
-        cv.visitLdcInsn(className);
+        // Push the generated class as a constant
+        cv.visitLdcInsn(Type.getObjectType(fqClassName));
 
         // Push arguments as an object array
         cv.visitVarInsn(ALOAD, argsVar);
 
         // invoke the initInstance() method
-        cv.visitMethodInsn(INVOKESTATIC, "bsh/This", "initInstance", "(Lbsh/GeneratedClass;Ljava/lang/String;[Ljava/lang/Object;)V", false);
+        cv.visitMethodInsn(INVOKESTATIC, "bsh/This", "initInstance", "(Lbsh/GeneratedClass;Ljava/lang/Class;[Ljava/lang/Object;)V", false);
 
         cv.visitInsn(RETURN);
 

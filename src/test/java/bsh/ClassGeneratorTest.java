@@ -458,4 +458,25 @@ public class ClassGeneratorTest {
             "Object o = Integer.valueOf(5);",
             "return new NullOverloadC().test(o);"));
     }
+
+    @Test
+    public void subclass_with_same_simple_name_calls_inherited_method() throws Exception {
+        assertEquals("pkg383.A", eval(
+            "package pkg383;",
+            "public class A { public String name() { return \"pkg383.A\"; } }",
+            "package pkg383.sub;",
+            "public class A extends pkg383.A {}",
+            "return new pkg383.sub.A().name();"
+        ));
+    }
+
+    @Test
+    public void class_method_does_not_hide_command_taking_other_arguments() throws Exception {
+        Interpreter bsh = new Interpreter();
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        bsh.setOut(new java.io.PrintStream(out));
+        bsh.eval("package pkg383p; public class Printer { public void print() { print(\"from command\"); } }");
+        bsh.eval("new pkg383p.Printer().print();");
+        assertThat(out.toString(), containsString("from command"));
+    }
 }

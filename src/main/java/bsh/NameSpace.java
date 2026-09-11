@@ -503,7 +503,7 @@ public class NameSpace
         if (isClass && null != classStatic) { // get class super instance This
             Class<?> zuper = classStatic.getSuperclass();
             if (Reflect.isGeneratedClass(zuper))
-                return Reflect.getClassInstanceThis(classInstance, zuper.getSimpleName());
+                return Reflect.getClassInstanceThis(classInstance, zuper);
         }
         if (this.parent != null) {
             if (this.parent.isClass)
@@ -939,7 +939,7 @@ public class NameSpace
                 // try find inherited loose-typed instance fields
                 Class<?> supr = object.getClass();
                 while (Reflect.isGeneratedClass(supr = supr.getSuperclass())) {
-                    This ths = Reflect.getClassInstanceThis(object, supr.getSimpleName());
+                    This ths = Reflect.getClassInstanceThis(object, supr);
                     if (null != ths && null != (var = ths.getNameSpace().variables.get(name)))
                         break;
                 }

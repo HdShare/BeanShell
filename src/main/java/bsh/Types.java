@@ -631,7 +631,7 @@ class Types {
         if ( toType.isAssignableFrom( fromType ) )
             return checkOnly ? VALID_CAST
                 : Reflect.isGeneratedClass(toType) && !Proxy.isProxyClass(fromType)
-                ? Reflect.getClassInstanceThis(fromValue, toType.getSimpleName())
+                ? Reflect.getClassInstanceThis(fromValue, toType)
                 : fromValue;
 
         // Allow This to pass as typed variable if classStatic is toType

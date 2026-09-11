@@ -209,7 +209,9 @@ public class BshClassManager {
         private Invocable findBest(List<Invocable> list, Class<?>[] types) {
             if (list.isEmpty())
                 return null;
-            if (list.size() == 1)
+            // A lone candidate is kept for its parameter errors, unless it can't take this many arguments.
+            if (list.size() == 1 && (list.get(0).isVarArgs()
+                    || list.get(0).getParameterCount() >= types.length))
                 return list.get(0);
             return Reflect.findMostSpecificInvocable(types, list);
         }
