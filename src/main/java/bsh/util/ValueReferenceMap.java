@@ -29,14 +29,19 @@ import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Objects.requireNonNull;
 
 /**
  * Implement a simple cache that automatically removes unused
- * values from the map.  References can be hard or soft.
+ * entries once their key or their value is no longer otherwise
+ * reachable. References can be weak or soft; both the key and the
+ * value are held at the same strength.
  */
 public class ValueReferenceMap<K,V> {
 
@@ -45,9 +50,29 @@ public class ValueReferenceMap<K,V> {
     private Function<K,V> creator;
     private Type type;
 
-    private HashMap<K,Reference<V>> map = new HashMap<>();
-    private HashMap<Reference<V>,K> reverse = new HashMap<>();
-    private ReferenceQueue<V> queue = new ReferenceQueue<>();
+    /** One entry per live cache mapping, bucketed by the key's hash code
+     * (captured at creation time so it survives key collection). Lookup
+     * always compares against the live key via equals(), never against a
+     * cached hash code alone -- a lone hash match is not equality. */
+    private final class Entry {
+        final int hash;
+        final Reference<K> keyRef;
+        final Reference<V> valueRef;
+        Entry(K key, V value) {
+            this.hash = key.hashCode();
+            this.keyRef = newReference(key, keyQueue);
+            this.valueRef = newReference(value, valueQueue);
+        }
+        K key() { return keyRef.get(); }
+        V value() { return valueRef.get(); }
+    }
+
+    private final Map<Integer,List<Entry>> buckets = new HashMap<>();
+    /** Reverse lookup from either a key or a value reference back to its
+     * entry, so a queued (collected) reference can be removed in O(1). */
+    private final Map<Reference<?>,Entry> byReference = new HashMap<>();
+    private final ReferenceQueue<K> keyQueue = new ReferenceQueue<>();
+    private final ReferenceQueue<V> valueQueue = new ReferenceQueue<>();
     private int counter;
     private int found;
     private int missed;
@@ -55,7 +80,7 @@ public class ValueReferenceMap<K,V> {
     /**
      * @param creator a function that creates the value object for
      * a given key in the map
-     * @param type the type of reference: Hard or Soft
+     * @param type the type of reference: Weak or Soft
      */
     public ValueReferenceMap(Function<K,V> creator, Type type) {
         requireNonNull(creator, "creator must not be null");
@@ -64,6 +89,11 @@ public class ValueReferenceMap<K,V> {
 
         this.creator = creator;
         this.type = type;
+    }
+
+    private <T> Reference<T> newReference(T obj, ReferenceQueue<T> queue) {
+        return type == Type.Weak
+            ? new WeakReference<T>(obj, queue) : new SoftReference<T>(obj, queue);
     }
 
     /**
@@ -75,39 +105,38 @@ public class ValueReferenceMap<K,V> {
         requireNonNull(key, "key must not be null");
 
         /*
-         * Periodically clean up the entries.
          * Could probably just unconditionally call clean() without a
-         * noticable performance penalty.
+         * noticable performance penalty, but only pay for the full
+         * counter/found/missed bookkeeping periodically.
          */
+        clean();
         if (++counter == 1000) {
-            clean();
-            counter=found=missed=0;
+            counter = found = missed = 0;
         }
 
-        /*
-         * Do not use computeIfAbsent because we need to
-         * maintain a hard reference to the object at all times.
-         */
-        Reference<V> ref = map.get(key);
-        if (ref != null) {
-            V obj = ref.get();
-            if (obj != null) {
-                found++;
-                return obj;
+        int hash = key.hashCode();
+        List<Entry> bucket = buckets.get(hash);
+        if (bucket != null)
+            for (Entry entry : bucket) {
+                K candidate = entry.key();
+                if (key.equals(candidate)) {
+                    V value = entry.value();
+                    if (value != null) {
+                        found++;
+                        return value;
+                    }
+                    break;
+                }
             }
-        }
 
         missed++;
-        V obj = requireNonNull(creator.apply(key),
+        V value = requireNonNull(creator.apply(key),
                                "ValueReference cache create value may not return null.");
-        if (type == Type.Weak)
-            ref = new WeakReference<V>(obj, queue);
-        else
-            ref = new SoftReference<V>(obj, queue);
-
-        map.put(key, ref);
-        reverse.put(ref, key);
-        return obj;
+        Entry entry = new Entry(key, value);
+        buckets.computeIfAbsent(hash, h -> new ArrayList<>()).add(entry);
+        byReference.put(entry.keyRef, entry);
+        byReference.put(entry.valueRef, entry);
+        return value;
     }
 
     /**
@@ -115,21 +144,30 @@ public class ValueReferenceMap<K,V> {
      * @param key the key for the entry
      */
     public synchronized boolean remove(K key) {
-        Reference<V> ref = map.remove(key);
-        boolean result = ref != null;
-        if (result)
-            reverse.remove(ref);
-        return result;
+        if (null == key)
+            return false;
+        List<Entry> bucket = buckets.get(key.hashCode());
+        if (bucket == null)
+            return false;
+        for (Entry entry : bucket) {
+            K candidate = entry.key();
+            if (key.equals(candidate)) {
+                removeEntry(entry);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
      * Remove all entries from the map
      */
     public synchronized void clear() {
-        clean();
-        map.clear();
-        reverse.clear();
-        counter=found=missed=0;
+        buckets.clear();
+        byReference.clear();
+        drain(keyQueue);
+        drain(valueQueue);
+        counter = found = missed = 0;
     }
 
     /**
@@ -137,22 +175,44 @@ public class ValueReferenceMap<K,V> {
      */
     public synchronized int size() {
         clean();
-        return map.size();
+        int size = 0;
+        for (List<Entry> bucket : buckets.values())
+            size += bucket.size();
+        return size;
+    }
+
+    /** Remove an entry from both the bucket and reverse lookup. */
+    private void removeEntry(Entry entry) {
+        List<Entry> bucket = buckets.get(entry.hash);
+        if (bucket != null) {
+            bucket.remove(entry);
+            if (bucket.isEmpty())
+                buckets.remove(entry.hash);
+        }
+        byReference.remove(entry.keyRef);
+        byReference.remove(entry.valueRef);
+    }
+
+    /** Discard queued references without processing them, e.g. after clear(). */
+    private void drain(ReferenceQueue<?> queue) {
+        while (queue.poll() != null) { /* discard */ }
     }
 
     /**
-     * Process events in the reference queue
+     * Process events in both reference queues, removing entries whose
+     * key or value has become unreachable.
      */
     private void clean() {
-        int cleaned = 0;
-        Reference<? extends V> wr;
-        while ((wr = queue.poll()) != null) {
-            K key = reverse.get(wr);
-            if (key != null)
-                map.remove(key, wr);
-            reverse.remove(wr);
-            cleaned++;
+        Reference<?> ref;
+        while ((ref = keyQueue.poll()) != null) {
+            Entry entry = byReference.get(ref);
+            if (entry != null)
+                removeEntry(entry);
         }
-        // System.err.println("counter="+counter+" cleaned="+cleaned+" found="+found+" missed="+missed+" map size="+map.size()+" reverse size="+reverse.size());
+        while ((ref = valueQueue.poll()) != null) {
+            Entry entry = byReference.get(ref);
+            if (entry != null)
+                removeEntry(entry);
+        }
     }
 }

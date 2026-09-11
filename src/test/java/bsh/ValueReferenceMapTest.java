@@ -4,7 +4,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -13,6 +15,7 @@ import static bsh.util.ValueReferenceMap.Type.Soft;
 import static bsh.util.ValueReferenceMap.Type.Weak;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
@@ -145,9 +148,23 @@ public class ValueReferenceMapTest {
 
     private Reference<?> cachedReference(ValueReferenceMap<?,?> cache, Object key)
             throws ReflectiveOperationException {
-        Field field = ValueReferenceMap.class.getDeclaredField("map");
-        field.setAccessible(true);
-        return (Reference<?>) ((Map<?,?>) field.get(cache)).get(key);
+        Field bucketsField = ValueReferenceMap.class.getDeclaredField("buckets");
+        bucketsField.setAccessible(true);
+        Map<?,?> buckets = (Map<?,?>) bucketsField.get(cache);
+        List<?> bucket = (List<?>) buckets.get(key.hashCode());
+
+        Class<?> entryClass = Class.forName("bsh.util.ValueReferenceMap$Entry");
+        Field keyRefField = entryClass.getDeclaredField("keyRef");
+        keyRefField.setAccessible(true);
+        Field valueRefField = entryClass.getDeclaredField("valueRef");
+        valueRefField.setAccessible(true);
+
+        for (Object entry : bucket) {
+            Reference<?> keyRef = (Reference<?>) keyRefField.get(entry);
+            if (key.equals(keyRef.get()))
+                return (Reference<?>) valueRefField.get(entry);
+        }
+        throw new AssertionError("no cached entry for key: " + key);
     }
 
     @Test
@@ -163,6 +180,58 @@ public class ValueReferenceMapTest {
         System.gc();
         assertNotEquals(cache.size(), cnt[0]);
         assertArrayEquals(new byte[1024*100], cache.get(cnt[0]));
+    }
+
+    /** Soft key collection isn't separately tested: SoftReferences only
+     * clear under real memory pressure, not a bare System.gc(), so a
+     * dedicated test would be flaky. Key and value references share the
+     * same Entry/newReference code, parameterized only by Type, so this
+     * proof for Weak covers the mechanism Soft relies on too. */
+    @Test
+    public void weak_key_collected_once_unreferenced() throws InterruptedException {
+        ValueReferenceMap<Object,String> cache = new ValueReferenceMap<>(k -> "value", Weak);
+        Object key = new Object();
+        WeakReference<Object> observedKey = new WeakReference<>(key);
+
+        cache.get(key);
+        key = null;
+
+        // Clearing and enqueueing a Reference are separate JVM steps; the
+        // enqueue happens on a background thread with unspecified timing,
+        // so poll cache.size() rather than assume one round of GC suffices.
+        int size = cache.size();
+        for (int i = 0; i < 20 && size != 0; i++) {
+            TestUtil.cleanUp();
+            Thread.sleep(10);
+            size = cache.size();
+        }
+
+        assertThat(observedKey.get(), nullValue());
+        assertThat(size, equalTo(0));
+    }
+
+    @Test
+    public void equal_hash_unequal_keys_map_to_distinct_values() {
+        ValueReferenceMap<CollidingKey,String> cache =
+            new ValueReferenceMap<>(k -> "value-for-" + k.id, Weak);
+        CollidingKey a = new CollidingKey("a");
+        CollidingKey b = new CollidingKey("b");
+        assertThat(a.hashCode(), equalTo(b.hashCode()));
+
+        assertThat(cache.get(a), equalTo("value-for-a"));
+        assertThat(cache.get(b), equalTo("value-for-b"));
+        assertThat(cache.get(a), equalTo("value-for-a"));
+        assertThat(cache.size(), equalTo(2));
+    }
+
+    /** A key whose hashCode() deliberately collides with every other instance. */
+    private static final class CollidingKey {
+        final String id;
+        CollidingKey(String id) { this.id = id; }
+        @Override public int hashCode() { return 42; }
+        @Override public boolean equals(Object o) {
+            return o instanceof CollidingKey && ((CollidingKey) o).id.equals(id);
+        }
     }
 
     @Test
