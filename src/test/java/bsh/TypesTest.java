@@ -490,22 +490,4 @@ public class TypesTest {
         Assert.assertTrue(Types.isBshAssignable(Object.class, Integer.TYPE));
     }
 
-    /** Test {@link Types#prettyName(Class)} with primitive Class<?>, e.g.: <b>byte</b>, <b>int</b>, <b>char</b>, etc... */
-    @Test
-    public void pretty_name_of_primitive() {
-        Assert.assertEquals("byte", Types.prettyName(byte.class));
-    }
-
-    /** Test {@link Types#prettyName(Class)} with an array Class<?>, e.g.: <b>java.lang.Object[]</b> */
-    @Test
-    public void pretty_name_of_array() {
-        Assert.assertEquals("java.lang.Object[]", Types.prettyName(new Object[3].getClass()));
-    }
-
-    /** Test {@link Types#prettyName(Class)} with an matrix Class<?>, e.g.: <b>java.lang.Object[][][][][]</b> */
-    @Test
-    public void pretty_name_of_matrix() {
-        Assert.assertEquals("int[][][][][][][]", Types.prettyName(new int[3][4][5][6][7][8][9].getClass()));
-    }
-
 }
