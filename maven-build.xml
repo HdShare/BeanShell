@@ -85,7 +85,7 @@
     <copy todir="${maven.build.outputDir}">
       <fileset dir="${maven.build.resourceDir.0}"/>
     </copy>
-    <copy todir="${maven.build.outputDir}">
+    <copy todir="${maven.build.outputDir}/bsh">
       <fileset dir="${maven.build.resourceDir.1}">
         <include name="version.properties"/>
       </fileset>

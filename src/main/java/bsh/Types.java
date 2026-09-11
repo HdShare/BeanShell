@@ -555,8 +555,8 @@ class Types {
     */
     public static Object castObject( Class<?> toType, Class<?> fromType, Object fromValue,
             int operation, boolean checkOnly ) throws UtilEvalError {
-        // assignment to loose type, void type, or exactly same type
-        if ( toType == null || arrayElementType(toType) == arrayElementType(fromType) )
+        // assignment to void type, or exactly same type
+        if ( toType == null || toType == fromType )
             return checkOnly ? VALID_CAST :
                 fromValue;
 
@@ -610,6 +610,12 @@ class Types {
                 // box it
                 return checkOnly ? VALID_CAST : Primitive.unwrap(fromValue);
             }
+
+            // Preserve directly assignable numeric references without conversion.
+            // Type-only checks have a null fromValue and use the reference path below.
+            if (fromType != null && !fromType.isPrimitive() &&
+                toType.isAssignableFrom( fromType ))
+                return fromValue;
 
             // Primitive to arbitrary object type.
             // Allow Primitive.castToType() to handle it as well as cases of

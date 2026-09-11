@@ -48,12 +48,15 @@ class BSHFormalParameter extends SimpleNode
     public String getTypeDescriptor(
         CallStack callstack, Interpreter interpreter, String defaultPackage )
     {
+        StringBuilder prefix = new StringBuilder();
+        for (int i = 0; i < dimensions + (isVarArgs ? 1 : 0); i++)
+            prefix.append('[');
         if ( jjtGetNumChildren() > 0 )
-            return (isVarArgs ? "[" : "") + ((BSHType)jjtGetChild(0)).getTypeDescriptor(
+            return prefix.toString() + ((BSHType)jjtGetChild(0)).getTypeDescriptor(
                 callstack, interpreter, defaultPackage );
         else
             // this will probably not get used
-            return  (isVarArgs ? "[" : "") +"Ljava/lang/Object;";  // Object type
+            return prefix.toString() + "Ljava/lang/Object;";  // Object type
     }
 
     /**
@@ -62,9 +65,12 @@ class BSHFormalParameter extends SimpleNode
     public Object eval( CallStack callstack, Interpreter interpreter)
         throws EvalError
     {
-        if ( jjtGetNumChildren() > 0 )
+        if ( jjtGetNumChildren() > 0 ) {
             type = ((BSHType)jjtGetChild(0)).getType( callstack, interpreter );
-        else
+            // Brackets after the name add to any dimensions on the type.
+            if (dimensions > 0)
+                type = Array.newInstance(type, new int[dimensions]).getClass();
+        } else
             type = UNTYPED;
 
         if (isVarArgs)
@@ -78,4 +84,3 @@ class BSHFormalParameter extends SimpleNode
         return super.toString() + ": " + name + ", final=" + isFinal + ", varargs=" + isVarArgs;
     }
 }
-

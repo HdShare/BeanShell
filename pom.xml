@@ -158,6 +158,7 @@
       </resource>
       <resource>
         <directory>src/conf</directory>
+        <targetPath>bsh</targetPath>
         <filtering>true</filtering>
         <includes>
           <include>version.properties</include>

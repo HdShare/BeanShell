@@ -39,6 +39,7 @@ import java.io.Serializable;
 import java.io.StringReader;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
+import java.util.Locale;
 import java.util.ResourceBundle;
 
 /**
@@ -114,7 +115,8 @@ public class Interpreter
     public static final String VERSION;
 
     static {
-        ResourceBundle b = ResourceBundle.getBundle("version");
+        ResourceBundle b = ResourceBundle.getBundle("bsh.version", Locale.ROOT,
+                Interpreter.class.getClassLoader());
         VERSION = b.getString("release") + "." + b.getString("build");
         staticInit();
     }
