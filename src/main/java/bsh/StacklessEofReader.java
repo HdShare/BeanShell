@@ -45,9 +45,16 @@ final class StacklessEofReader extends FilterReader {
     @Override
     public int read(char[] buf, int off, int len) throws IOException {
         if (null != endOfInput) {
-            // The caller may have reset or replaced the underlying reader, so
-            // try a real read before rethrowing the cached EOF exception.
-            int count = in.read(buf, off, len);
+            // The caller may have reset or replaced the underlying reader, so try a
+            // real read before rethrowing the cached EOF exception. If the reader
+            // errors instead (e.g. it was already closed), rethrow the cached
+            // exception rather than propagate a fresh, real stack trace.
+            int count;
+            try {
+                count = in.read(buf, off, len);
+            } catch (IOException e) {
+                throw endOfInput;
+            }
             if (-1 == count)
                 throw endOfInput;
             endOfInput = null;
@@ -56,7 +63,7 @@ final class StacklessEofReader extends FilterReader {
         int count = in.read(buf, off, len);
         if (-1 == count) {
             // Do not close the underlying reader: it is owned by the caller and
-            // may need to be reused, reset, or may have already been closed.
+            // may need to be reused or reset.
             endOfInput = new EndOfInput();
             throw endOfInput;
         }

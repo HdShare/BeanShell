@@ -52,7 +52,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.RejectedExecutionException;
 
 import javax.swing.Icon;
 import javax.swing.JMenuItem;
@@ -98,6 +98,9 @@ public class JConsole extends JScrollPane
     private InputStream inPipe;
     private InputStream in;
     private PrintStream out;
+    private final boolean ownsInPipe;
+    private Thread inPipeWatcherThread;
+    private volatile boolean closed;
 
     public InputStream getInputStream() { return in; }
     public Reader getIn() { return new FileReader(in); }
@@ -174,6 +177,7 @@ public class JConsole extends JScrollPane
         }
 
         inPipe = cin;
+        ownsInPipe = inPipe == null;
         if ( inPipe == null ) {
             PipedOutputStream pout = new PipedOutputStream();
             try {
@@ -182,9 +186,9 @@ public class JConsole extends JScrollPane
             } catch ( IOException e ) { print("Console internal error: "+e); }
         }
         // Start the inpipe watcher
-        Thread thread = new Thread( this );
-        thread.setDaemon(true);
-        thread.start();
+        inPipeWatcherThread = new Thread( this, "JConsole pipe watcher" );
+        inPipeWatcherThread.setDaemon(true);
+        inPipeWatcherThread.start();
 
         requestFocus();
     }
@@ -517,7 +521,11 @@ public class JConsole extends JScrollPane
             print("Console internal error: cannot output ...", Color.red);
         else {
             final byte[] bytes = line.getBytes(StandardCharsets.UTF_8);
-            pipeWriter.execute(() -> writeToPipe(bytes));
+            try {
+                pipeWriter.execute(() -> writeToPipe(bytes));
+            } catch (RejectedExecutionException e) {
+                // console has been closed; drop the input
+            }
         }
         //text.repaint();
     }
@@ -719,7 +727,8 @@ public class JConsole extends JScrollPane
         try {
             inPipeWatcher();
         } catch ( IOException e ) {
-            print("Console: I/O Error: "+e+"\n", Color.red);
+            if (!closed)
+                print("Console: I/O Error: "+e+"\n", Color.red);
         }
     }
 
@@ -843,21 +852,18 @@ public class JConsole extends JScrollPane
 
     private int textLength() { return text.getDocument().getLength(); }
 
-    /**
-     * Terminate background threads and release resources. JConsole should be
-     * closed when it is no longer needed so the pipe writer thread is not left
-     * running. Implements {@link AutoCloseable} so callers can use
-     * try-with-resources.
-     */
+    /** Stops the pipe writer and pipe watcher threads without blocking the caller. */
     @Override
     public void close() {
-        pipeWriter.shutdown();
-        try {
-            if (!pipeWriter.awaitTermination(5, TimeUnit.SECONDS))
-                pipeWriter.shutdownNow();
-        } catch (InterruptedException e) {
-            pipeWriter.shutdownNow();
-            Thread.currentThread().interrupt();
+        closed = true;
+        pipeWriter.shutdownNow();
+        inPipeWatcherThread.interrupt();
+        if (ownsInPipe) {
+            try {
+                inPipe.close();
+            } catch (IOException e) {
+                // already tearing down
+            }
         }
     }
 

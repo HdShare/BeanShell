@@ -118,6 +118,18 @@ public class JConsoleTest {
         assertEquals("pipe writer thread leaked after close", before, after);
     }
 
+    @Test
+    public void enter_after_close_does_not_throw() throws Exception {
+        JConsole console = new JConsole();
+        JTextPane text = textPane(console);
+        console.print("bsh % ");
+        typeCommand(text, "x=1");
+
+        console.close();
+
+        press(console, KeyEvent.VK_ENTER); // must not throw RejectedExecutionException
+    }
+
     private static Set<Thread> pipeWriterThreads() {
         return Thread.getAllStackTraces().keySet().stream()
                 .filter(t -> "JConsole pipe writer".equals(t.getName()) && t.isAlive())
