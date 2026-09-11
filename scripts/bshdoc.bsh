@@ -38,10 +38,6 @@
 import bsh.*;
 import java.util.regex.*;
 
-// The ASTs are not currently public. We'll probably move them to another
-// package soon to do that.
-setAccessibility(true);
-
 // Trivial support for formatting the XML
 tabs=0;
 tab() { super.tabs++; }
@@ -102,15 +98,17 @@ bshdoc( filename )
     this.parser = new Parser( new FileReader(filename) );
     parser.setRetainComments(true);
 
-    this.lastNode = null;
     this.firstComment = null;
+    List<String> formalComments = null;
     while( !parser.Line() )
     {
         this.node = parser.popNode();
+        formalComments = parser.getFormalCommentsBeforeNode(node);
 
-        if ( node instanceof BSHFormalComment
+        // The first comment can document the file; the last documents the method.
+        if ( formalComments.size() > 0
             && firstComment == null )
-            firstComment = node;
+            firstComment = formalComments.get(0);
 
         if ( node instanceof BSHMethodDeclaration )
         {
@@ -123,20 +121,24 @@ bshdoc( filename )
             print("<Name>"+node.name+"</Name>");
             print("<Sig>"+sig+"</Sig>");
 
-            if ( lastNode instanceof BSHFormalComment ) {
-                printComment( lastNode.text );
+            if ( formalComments.size() > 0 ) {
+                String comment = formalComments.get(formalComments.size()-1);
+                printComment( comment );
 
-                if ( firstComment == lastNode )
+                if ( firstComment == comment )
                     firstComment = null;
             }
             untab();
             print("</Method>");
         }
-        lastNode = node;
     }
+    // Trailing comments belong to EOF, which has no AST node.
+    formalComments = parser.getFormalCommentsBeforeToken(parser.getToken(0));
+    if ( firstComment == null && formalComments.size() > 0 )
+        firstComment = formalComments.get(0);
     if ( firstComment != null ) {
         tab();
-        printComment(firstComment.text);
+        printComment(firstComment);
         untab();
     }
 
@@ -147,7 +149,7 @@ bshdoc( filename )
 /**
     bshdoc list comment.
 */
-bshdoc( String [] filenames )
+bshdocl( String [] filenames )
 {
     print("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
     print("<?xml-stylesheet type=\"text/xsl\" href=\"bshcommands.xsl\"?>");
@@ -170,4 +172,4 @@ if ( list.length == 0 ) {
     print("usage: bshdoc file [ file ] [ ... ]");
     return;
 }
-bshdoc( list );
+bshdocl( list );
