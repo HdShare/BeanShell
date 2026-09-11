@@ -28,6 +28,7 @@ import java.io.StringReader;
 import java.lang.ref.WeakReference;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
@@ -311,6 +312,31 @@ public class InterpreterTest {
             Interpreter.DEBUG.set(false);
             assertTrue(baos.toString().contains("bsh %"));
             assertEquals(2, baos.toString().split("Debug:").length);
+        }
+    }
+
+    @Test
+    public void debug_flag_does_not_leak_into_new_root_interpreter() throws Exception {
+        new Interpreter();
+        Interpreter.DEBUG.set(true);
+        try {
+            assertTrue(Interpreter.DEBUG.get());
+            new Interpreter();
+            assertFalse(Interpreter.DEBUG.get());
+        } finally {
+            Interpreter.DEBUG.set(false);
+        }
+    }
+
+    @Test
+    public void debug_flag_persists_across_child_interpreter() throws Exception {
+        Interpreter parent = new Interpreter();
+        Interpreter.DEBUG.set(true);
+        try {
+            new Interpreter(parent);
+            assertTrue(Interpreter.DEBUG.get());
+        } finally {
+            Interpreter.DEBUG.set(false);
         }
     }
 

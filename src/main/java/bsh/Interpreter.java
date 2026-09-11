@@ -189,6 +189,11 @@ public class Interpreter
      * @param sourceFileInfo source file info for debugging or null. */
     public Interpreter( ConsoleAssignable console, boolean interactive,
             NameSpace namespace, Interpreter parent, String sourceFileInfo ) {
+        if ( parent == null )
+            // a root interpreter must not inherit a debug flag left set by
+            // an unrelated prior session on a reused (e.g. pooled) thread
+            DEBUG.set(Boolean.getBoolean("debug"));
+
         long t1 = 0;
         if (Interpreter.DEBUG.get())
             t1=System.nanoTime();
