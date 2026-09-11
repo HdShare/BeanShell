@@ -16,6 +16,8 @@ Fixed a parser input-buffer defect where long string literals, identifiers, or c
 
 Float arithmetic now follows Java's numeric promotion (#767). `+`, `-`, `*`, `/` and `%` on `float` operands, including `float` mixed with `byte`, `short`, `char`, `int` or `long`, are computed in `float` and return `Float` instead of being widened to `double`. This deliberately changes the behavior documented in #71: a float result that overflows is now `Infinity` rather than a larger `Double` (for example `Float.MAX_VALUE * 2`), and compound assignments such as `long += float` round through `float` as compiled Java does. Arithmetic involving `double`, `BigInteger` or `BigDecimal` is unchanged.
 
+Fixed intermittent wrong-variable lookups in nested blocks and loops (#659). An internal cache treated any two keys with the same hash code as the same entry, so a block could occasionally be given another block's namespace; the class-member cache had the same flaw. The cache now compares keys exactly.
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions
