@@ -1,5 +1,19 @@
 # BeanShell changelog
 
+## 3.0.0 (in progress)
+
+Work has resumed on the long-dormant 3.0 development line (`master`, JDK 8 baseline, tested through JDK 21) after a multi-year gap. This entry will grow as the release is prepared; changes so far:
+
+BeanShell could fail to start, or silently report the wrong version, when another JAR earlier on a shared classpath also provided a root-level `version.properties` (#736, #783). BeanShell's own version metadata is now packaged and loaded from a namespaced `bsh/version.properties` resource instead.
+
+Unary operators (`++`, `--`, unary `+`/`-`, `~`) previously rejected boxed numeric and character wrapper types (`Byte`, `Short`, `Character`, `Integer`, `Long`, `Float`, `Double`, `BigInteger`, `BigDecimal`), throwing `EvalError` for code as simple as `Integer i = new Integer(0); ++i;` (#762). These now behave consistently with primitives, including correct boxed results for increment/decrement.
+
+Fixed a method-lookup regression from BeanShell 2.0b5 where overload resolution mismatched array-typed parameters against scalar arguments in some declaration orders (#731), plus follow-on gaps in split array dimensions (`String[] values[]`) and generated JVM method/constructor descriptors for array parameters.
+
+Fixed numeric reference casts such as `(Number) Double.valueOf(1)`, which previously threw `ClassCastException`, while preserving the original object identity across casts and assignments (#725).
+
+Fixed a parser input-buffer defect where long string literals, identifiers, or comments could corrupt the shared buffer-position counter, causing `ArrayIndexOutOfBoundsException`, parse errors, or truncated/incorrect token contents once a token crossed a buffer growth or wraparound boundary (#734, #743).
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions
