@@ -5,6 +5,8 @@ import static org.junit.Assume.assumeTrue;
 
 import java.awt.GraphicsEnvironment;
 import java.util.Arrays;
+import java.util.List;
+import java.util.TreeSet;
 
 import org.junit.After;
 import org.junit.Before;
@@ -15,6 +17,7 @@ import org.junit.runner.RunWith;
 public class DesktopCommandTest {
 
     private Interpreter bsh;
+    private List<String> systemVarsBefore;
 
     @Before
     public void startDesktopHeadless() throws Exception {
@@ -22,14 +25,28 @@ public class DesktopCommandTest {
         assumeTrue(GraphicsEnvironment.isHeadless());
         bsh = new Interpreter();
         clearDesktop();
+        systemVarsBefore = systemVariables();
         // Stops at new JFrame, after its listeners are defined and bsh.system.desktop is set.
         bsh.eval("try { desktop(); } catch (java.awt.HeadlessException e) { }");
     }
 
     @After
-    public void clearDesktop() throws Exception {
-        if (bsh != null)
-            bsh.eval("if (bsh.system.desktop != void) unset(\"bsh.system.desktop\");");
+    public void restoreSharedSystemNamespace() throws Exception {
+        if (bsh == null)
+            return;
+        for (String name : systemVariables())
+            if (!systemVarsBefore.contains(name))
+                bsh.eval("unset(\"bsh.system." + name + "\");");
+        // bsh.system is shared by every interpreter, so leftovers end up in later tests and serialized interpreters.
+        assertEquals(new TreeSet<>(systemVarsBefore), new TreeSet<>(systemVariables()));
+    }
+
+    private void clearDesktop() throws Exception {
+        bsh.eval("if (bsh.system.desktop != void) unset(\"bsh.system.desktop\");");
+    }
+
+    private List<String> systemVariables() throws Exception {
+        return Arrays.asList((String[]) bsh.eval("bsh.system.namespace.getVariableNames()"));
     }
 
     @Test
