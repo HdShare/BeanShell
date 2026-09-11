@@ -83,6 +83,7 @@ class BSHTryStatement extends SimpleNode
             Note: we the stack info... what do we do with it?  append
             to exception message?
         */
+        EvalError uncaught = null;
         int callstackDepth = callstack.depth();
         try {
             Interpreter.debug("Evaluate try block");
@@ -95,6 +96,7 @@ class BSHTryStatement extends SimpleNode
         catch( TargetError e ) {
             Interpreter.debug("TargetError from try block: ", e);
             thrown = e.getTarget();
+            uncaught = e;
             // clean up call stack grown due to exception interruption
             while ( callstack.depth() > callstackDepth )
                 callstack.pop();
@@ -102,6 +104,7 @@ class BSHTryStatement extends SimpleNode
         catch( EvalException e ) {
             Interpreter.debug("EvalException from try block: ", e);
             thrown = e;
+            uncaught = e;
             // clean up call stack grown due to exception interruption
             while ( callstack.depth() > callstackDepth )
                 callstack.pop();
@@ -198,9 +201,9 @@ class BSHTryStatement extends SimpleNode
                     return result;
             }
         }
-        // exception fell through, throw it upward...
+        // Uncaught: rethrow the original error so it keeps the failing statement's location.
         if( null != thrown )
-            throw new TargetError(thrown, this, callstack);
+            throw uncaught;
 
         // no exception return
         return ret instanceof ReturnControl ? ret : Primitive.VOID;

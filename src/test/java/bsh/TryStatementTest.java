@@ -273,4 +273,68 @@ public class TryStatementTest {
         assertEquals("return from finally", result);
     }
 
+    @Test
+    public void uncaught_java_exception_in_try_finally_reports_failing_line() throws Exception {
+        try {
+            eval(
+                "try {",
+                "   x = 1;",
+                "   Integer.parseInt(\"abc\");",
+                "} finally {",
+                "}"
+            );
+            fail("Expected TargetError");
+        } catch (TargetError e) {
+            assertEquals(3, e.getErrorLineNumber());
+        }
+    }
+
+    @Test
+    public void java_exception_not_matching_catch_reports_failing_line() throws Exception {
+        try {
+            eval(
+                "try {",
+                "   x = 1;",
+                "   Integer.parseInt(\"abc\");",
+                "} catch (ArithmeticException e) {",
+                "}"
+            );
+            fail("Expected TargetError");
+        } catch (TargetError e) {
+            assertEquals(3, e.getErrorLineNumber());
+        }
+    }
+
+    @Test
+    public void uncaught_eval_error_in_try_finally_reports_failing_line() throws Exception {
+        try {
+            eval(
+                "try {",
+                "   x = 1;",
+                "   undefinedMethodCall();",
+                "} finally {",
+                "}"
+            );
+            fail("Expected EvalError");
+        } catch (EvalError e) {
+            assertEquals(3, e.getErrorLineNumber());
+        }
+    }
+
+    @Test
+    public void nested_target_error_in_try_finally_reports_failing_line() throws Exception {
+        try {
+            eval(
+                "class TryNestedThrower { void fail() { Integer.parseInt(\"abc\"); } }",
+                "try {",
+                "   new TryNestedThrower().fail();",
+                "} finally {",
+                "}"
+            );
+            fail("Expected TargetError");
+        } catch (TargetError e) {
+            assertEquals(3, e.getErrorLineNumber());
+        }
+    }
+
 }

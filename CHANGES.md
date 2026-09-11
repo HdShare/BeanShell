@@ -24,6 +24,8 @@ Updated the bundled ASM bytecode library to 9.10.1, still relocated under `bsh.o
 
 Passing a bare `null` to a Java varargs method or constructor now passes a null array, as compiled Java does, instead of wrapping it in a one-element array (#778). More generally, a bare `null` argument now matches array-typed overloads: `String.valueOf(null)` and `Arrays.asList(null)` now throw `NullPointerException`, as in Java, where they previously returned `"null"` and `[null]`. `(Object) null` still passes a single null element.
 
+An error that escapes a `try` block uncaught, whether through `finally` or because no `catch` matches, is now reported at the line where it occurred instead of at the `try` statement (#726).
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions
