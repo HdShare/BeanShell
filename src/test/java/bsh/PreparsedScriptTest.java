@@ -142,6 +142,6 @@ public class PreparsedScriptTest {
     public void testZeroFloat() throws Exception {
         final PreparsedScript f = new PreparsedScript(
                 "double d = 0.0; float f = (float) d; return f * 2;", _classLoader);
-        assertEquals(0.0, f.invoke(emptyMap()));
+        assertEquals(0.0f, f.invoke(emptyMap()));
     }
 }

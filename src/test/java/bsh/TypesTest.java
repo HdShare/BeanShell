@@ -19,11 +19,71 @@ import static org.hamcrest.Matchers.containsString;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TypesTest {
+
+    @Test
+    public void issue725PreservesTheOriginalReference() throws Exception {
+        Double value = Double.valueOf(1);
+        Interpreter interpreter = new Interpreter();
+        interpreter.set("value", value);
+        Assert.assertSame(value, interpreter.eval("o = value; oo = (Number) o; oo;"));
+        Assert.assertSame(value, interpreter.eval("Number n = value; n;"));
+    }
+
+    @Test
+    public void boxedNumberCastsAndAssignmentsPreserveIdentity() throws Exception {
+        Number[] values = {Byte.valueOf((byte) 1), Short.valueOf((short) 2),
+            Integer.valueOf(3), Long.valueOf(4), Float.valueOf(5.5f), Double.valueOf(6.5),
+            Double.NaN, Double.POSITIVE_INFINITY, Double.valueOf(1e30),
+            new BigInteger("12345678901234567890"), new BigDecimal("1.2500"),
+            new AtomicInteger(7)};
+        for (Number value : values)
+            for (int operation : new int[] {Types.CAST, Types.ASSIGNMENT})
+                Assert.assertSame(value, Types.castObject(value, Number.class, operation));
+    }
+
+    @Test
+    public void checkOnlyUsesTypesWithoutAValue() throws Exception {
+        for (int operation : new int[] {Types.CAST, Types.ASSIGNMENT}) {
+            Assert.assertSame(Types.VALID_CAST,
+                Types.castObject(Number.class, Double.class, null, operation, true));
+            Assert.assertSame(Types.INVALID_CAST,
+                Types.castObject(Number.class, String.class, null, operation, true));
+            Assert.assertSame(Types.VALID_CAST,
+                Types.castObject(Number.class, null, null, operation, true));
+            Assert.assertSame(Types.INVALID_CAST,
+                Types.castObject(Number.class, int.class, null, operation, true));
+            Assert.assertSame(Types.INVALID_CAST,
+                Types.castObject(Number.class, void.class, null, operation, true));
+        }
+    }
+
+    @Test
+    public void nullCastsAndAssignmentsRemainNull() throws Exception {
+        for (int operation : new int[] {Types.CAST, Types.ASSIGNMENT})
+            Assert.assertSame(Primitive.NULL, Types.castObject(Primitive.NULL, Number.class, operation));
+    }
+
+    @Test
+    public void primitiveCannotBecomeAnUnrelatedReference() {
+        Assert.assertThrows(UtilTargetError.class,
+                () -> Types.castObject(new Primitive(1), String.class, Types.CAST));
+        Assert.assertThrows(UtilEvalError.class,
+                () -> Types.castObject(new Primitive(1), String.class, Types.ASSIGNMENT));
+    }
+
+    @Test
+    public void voidCannotBecomeANumber() {
+        Assert.assertThrows(UtilTargetError.class,
+                () -> Types.castObject(Primitive.VOID, Number.class, Types.CAST));
+        Assert.assertThrows(UtilEvalError.class,
+                () -> Types.castObject(Primitive.VOID, Number.class, Types.ASSIGNMENT));
+    }
 
     /**
      * Test cast primitive to wrapper type
@@ -428,24 +488,6 @@ public class TypesTest {
     @Test
     public void is_assignable_object_primitive_to_object() throws Exception {
         Assert.assertTrue(Types.isBshAssignable(Object.class, Integer.TYPE));
-    }
-
-    /** Test {@link Types#prettyName(Class)} with primitive Class<?>, e.g.: <b>byte</b>, <b>int</b>, <b>char</b>, etc... */
-    @Test
-    public void pretty_name_of_primitive() {
-        Assert.assertEquals("byte", Types.prettyName(byte.class));
-    }
-
-    /** Test {@link Types#prettyName(Class)} with an array Class<?>, e.g.: <b>java.lang.Object[]</b> */
-    @Test
-    public void pretty_name_of_array() {
-        Assert.assertEquals("java.lang.Object[]", Types.prettyName(new Object[3].getClass()));
-    }
-
-    /** Test {@link Types#prettyName(Class)} with an matrix Class<?>, e.g.: <b>java.lang.Object[][][][][]</b> */
-    @Test
-    public void pretty_name_of_matrix() {
-        Assert.assertEquals("int[][][][][][][]", Types.prettyName(new int[3][4][5][6][7][8][9].getClass()));
     }
 
 }

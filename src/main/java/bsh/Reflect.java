@@ -92,11 +92,19 @@ public final class Reflect {
             Object object, String methodName, Object[] args,
             Interpreter interpreter, CallStack callstack,
             Node callerInfo) throws EvalError {
+        return invokeObjectMethod(object, methodName, new CallArguments(args),
+                interpreter, callstack, callerInfo, null);
+    }
+
+    static Object invokeObjectMethod(Object object, String methodName, CallArguments arguments,
+            Interpreter interpreter, CallStack callstack, Node callerInfo,
+            CallArguments.Result result) throws EvalError {
+        Object[] args = arguments.values;
         // Bsh scripted object
         if (object instanceof This && !This.isExposedThisMethod(methodName))
             return ((This) object).invokeMethod(
-                    methodName, args, interpreter, callstack, callerInfo,
-                    false/* declaredOnly */);
+                    methodName, arguments, interpreter, callstack, callerInfo,
+                    false/* declaredOnly */, result);
         // Plain Java object, script engine exposed instance and find java method to invoke
         BshClassManager bcm = interpreter.getClassManager();
         // Flag primitive for overwrites, value/type exposure and recursion loop metigation.
@@ -114,10 +122,11 @@ public final class Reflect {
                     return (object == Primitive.VOID) ? ((Primitive)object).getType() : type;
             } try { // Script engine exposed instance for method lookup and invocation here
                 Invocable method = resolveExpectedJavaMethod(
-                        bcm, type, object, methodName, args, false);
+                        bcm, type, object, methodName, arguments, false);
                 NameSpace ns = getThisNS(object);
                 if (null != ns) ns.setNode(callerInfo);
-                return method.invoke(object, args); // script engine exposed instance call
+                if (result != null) result.type = method.getReturnType();
+                return method.invokeWithArguments(object, arguments); // script engine exposed instance call
             } catch (ReflectError re) { // Void has overstayed its welcome round about here
                 if (object == Primitive.VOID) throw new EvalError("Attempt to invoke method: "
                     + methodName + "() on undefined", callerInfo, callstack, re);
@@ -201,13 +210,20 @@ public final class Reflect {
             Object [] args, Node callerInfo )
                     throws ReflectError, UtilEvalError,
                            InvocationTargetException {
+        return invokeStaticMethod(bcm, clas, methodName, new CallArguments(args), callerInfo, null);
+    }
+
+    static Object invokeStaticMethod(BshClassManager bcm, Class<?> clas, String methodName,
+            CallArguments arguments, Node callerInfo, CallArguments.Result result)
+            throws ReflectError, UtilEvalError, InvocationTargetException {
         Interpreter.debug("invoke static Method");
         NameSpace ns = getThisNS(clas);
         if (null != ns)
             ns.setNode(callerInfo);
         Invocable method = resolveExpectedJavaMethod(
-            bcm, clas, null, methodName, args, true );
-        return method.invoke(null, args);
+            bcm, clas, null, methodName, arguments, true);
+        if (result != null) result.type = method.getReturnType();
+        return method.invokeWithArguments(null, arguments);
     }
 
     public static Object getStaticFieldValue(Class<?> clas, String fieldName)
@@ -222,6 +238,14 @@ public final class Reflect {
      */
     public static Object getObjectFieldValue( Object object, String fieldName )
             throws UtilEvalError, ReflectError {
+        return getObjectFieldValue(object, fieldName, null);
+    }
+
+    /** Same as {@link #getObjectFieldValue(Object, String)}, optionally
+     * reporting the field's or property getter's declared type. */
+    static Object getObjectFieldValue(
+            Object object, String fieldName, CallArguments.Result result )
+            throws UtilEvalError, ReflectError {
         if ( object instanceof This ) {
             return ((This) object).namespace.getVariable( fieldName );
         } else if( object == Primitive.NULL ) {
@@ -229,12 +253,14 @@ public final class Reflect {
                 "Attempt to access field '" +fieldName+"' on null value" ) );
         } else {
             try {
-                return getFieldValue(
+                Object value = getFieldValue(
                     object.getClass(), object, fieldName, false/*onlystatic*/);
+                if (result != null) result.field(object, fieldName);
+                return value;
             } catch ( ReflectError e ) {
                 // no field, try property access
                 if ( hasObjectPropertyGetter( object.getClass(), fieldName ) )
-                    return getObjectProperty( object, fieldName );
+                    return getObjectProperty( object, fieldName, result );
                 else
                     throw e;
             }
@@ -381,11 +407,17 @@ public final class Reflect {
             BshClassManager bcm, Class<?> clas, Object object,
             String name, Object[] args, boolean staticOnly )
             throws ReflectError, UtilEvalError {
+        return resolveExpectedJavaMethod(bcm, clas, object, name, new CallArguments(args), staticOnly);
+    }
+
+    static Invocable resolveExpectedJavaMethod(BshClassManager bcm, Class<?> clas,
+            Object object, String name, CallArguments arguments, boolean staticOnly)
+            throws ReflectError, UtilEvalError {
         if ( object == Primitive.NULL )
             throw new UtilTargetError( new NullPointerException(
                 "Attempt to invoke method " +name+" on null value" ) );
 
-        Class<?>[] types = Types.getTypes(args);
+        Class<?>[] types = arguments.types;
         Invocable method = resolveJavaMethod( clas, name, types, staticOnly );
         if ( null != bcm && bcm.getStrictJava()
                 && method != null && method.getDeclaringClass().isInterface()
@@ -437,7 +469,7 @@ public final class Reflect {
             throw new InterpreterError("null class");
 
         Invocable method = BshClassManager.memberCache
-                .get(clas).findMethod(name, types);
+                .get(clas).findMethodOrProperty(name, types);
         Interpreter.debug("resolved java method: ", method, " on class: ", clas);
         checkFoundStaticMethod( method, staticOnly, clas );
         return method;
@@ -471,13 +503,19 @@ public final class Reflect {
     }
     static Object constructObject( Class<?> clas, Object object, Object[] args )
             throws ReflectError, InvocationTargetException {
+        return constructWithArguments(clas, object, new CallArguments(args));
+    }
+
+    static Object constructWithArguments(Class<?> clas, Object object, CallArguments arguments)
+            throws ReflectError, InvocationTargetException {
+        Object[] args = arguments.values;
         if ( null == clas )
             return Primitive.NULL;
         if ( clas.isInterface() )
             throw new ReflectError(
                 "Can't create instance of an interface: "+clas);
 
-        Class<?>[] types = Types.getTypes(args);
+        Class<?>[] types = arguments.types;
         if (clas.isMemberClass() && !isStatic(clas) && null != object)
             types = Stream.concat(Stream.of(object.getClass()),
                     Stream.of(types)).toArray(Class[]::new);
@@ -489,7 +527,7 @@ public final class Reflect {
             throw cantFindConstructor( clas, types );
 
         try {
-            return con.invoke( object, args );
+            return con.invokeWithArguments(object, arguments);
         } catch(InvocationTargetException  e) {
             if (e.getCause().getCause() instanceof IllegalAccessException)
                 throw new ReflectError(
@@ -775,9 +813,7 @@ public final class Reflect {
             Class<?> clas, String propName ) {
         if ( Types.isPropertyType(clas) )
             return true;
-        return BshClassManager.memberCache
-                .get(clas).hasMember(propName)
-            && null != BshClassManager.memberCache
+        return null != BshClassManager.memberCache
                 .get(clas).findGetter(propName);
     }
 
@@ -785,24 +821,30 @@ public final class Reflect {
             Class<?> clas, String propName ) {
         if ( Types.isPropertyType(clas) )
             return true;
-        return BshClassManager.memberCache
-                .get(clas).hasMember(propName)
-            && null != BshClassManager.memberCache
+        return null != BshClassManager.memberCache
                 .get(clas).findSetter(propName);
     }
 
     @SuppressWarnings("rawtypes")
     public static Object getObjectProperty(Object obj, String propName) {
+        return getObjectProperty(obj, propName, null);
+    }
+    @SuppressWarnings("rawtypes")
+    static Object getObjectProperty(Object obj, String propName, CallArguments.Result result) {
         if (Types.isPropertyTypeEntry(obj)) switch (propName) {
             case "key":
                 return ((Entry) obj).getKey();
             case "val": case "value":
                 return ((Entry) obj).getValue();
         }
-        return getObjectProperty(obj, (Object) propName);
+        return getObjectProperty(obj, (Object) propName, result);
     }
     @SuppressWarnings("rawtypes")
     public static Object getObjectProperty(Object obj, Object propName) {
+        return getObjectProperty(obj, propName, null);
+    }
+    @SuppressWarnings("rawtypes")
+    static Object getObjectProperty(Object obj, Object propName, CallArguments.Result result) {
         if ( Types.isPropertyTypeMap(obj) ) {
             Map map = (Map) obj;
             if (map.containsKey(propName))
@@ -833,6 +875,7 @@ public final class Reflect {
             Interpreter.debug("property getter not found");
             return Primitive.VOID;
         }
+        if (result != null) result.type = getter.getReturnType();
         try {
             return getter.invoke(obj);
         } catch(InvocationTargetException e) {
@@ -990,9 +1033,11 @@ public final class Reflect {
      * @return the class instance This object or null if the object has not
      * been initialized.
      */
-    public static This getClassInstanceThis(Object instance, String className) {
+    public static This getClassInstanceThis(Object instance, Class<?> genClass) {
         try {
-            Object o = getObjectFieldValue(instance, BSHTHIS + className);
+            // Resolve on genClass itself: a subclass may declare a holder with the same simple name.
+            Object o = getFieldValue(genClass, instance,
+                BSHTHIS + genClass.getSimpleName(), false/*onlystatic*/);
             return (This) Primitive.unwrap(o); // unwrap Primitive.Null to null
         } catch (Exception e) {
             throw new InterpreterError("Generated class: Error getting This " + e, e);
@@ -1027,7 +1072,7 @@ public final class Reflect {
         try {
             if (object instanceof Proxy)
                 return getThisNS(type.getInterfaces()[0]);
-            return getClassInstanceThis(object, type.getSimpleName()).namespace;
+            return getClassInstanceThis(object, type).namespace;
         } catch (Exception e) {
             return null;
         }
@@ -1297,4 +1342,10 @@ public final class Reflect {
         .filter(Objects::nonNull)
         .toArray(len -> (T[]) Array.newInstance(enm, len));
     }
+
+    /** Find the type of an object. */
+    public static Class<?> getType(Object arg) {
+        return Types.getType(arg);
+    }
+
 }

@@ -48,6 +48,11 @@ class BSHMethodInvocation extends SimpleNode
     public Object eval( CallStack callstack, Interpreter interpreter )
         throws EvalError
     {
+        return eval(callstack, interpreter, null);
+    }
+
+    Object eval(CallStack callstack, Interpreter interpreter, CallArguments.Result result)
+            throws EvalError {
         NameSpace namespace = callstack.top();
         BSHAmbiguousName nameNode = getNameNode();
 
@@ -63,10 +68,10 @@ class BSHMethodInvocation extends SimpleNode
             return Primitive.VOID;
 
         Name name = nameNode.getName(namespace);
-        Object[] args = getArgsNode().getArguments(callstack, interpreter);
+        CallArguments args = getArgsNode().getCallArguments(callstack, interpreter);
 
         try {
-            return name.invokeMethod( interpreter, args, callstack, this);
+            return name.invokeMethod(interpreter, args, callstack, this, result);
         } catch (ReflectError e) {
             throw new EvalException(
                 "Error in method invocation: " + e.getMessage(),

@@ -268,6 +268,13 @@ public class BshMethod implements Serializable, Cloneable, BshClassManager.Liste
             Node callerInfo, boolean overrideNameSpace )
         throws EvalError
     {
+        return invoke(new CallArguments(argValues), interpreter, callstack,
+                callerInfo, overrideNameSpace);
+    }
+
+    Object invoke(CallArguments arguments, Interpreter interpreter, CallStack callstack,
+            Node callerInfo, boolean overrideNameSpace) throws EvalError {
+        Object[] argValues = arguments.values;
         Interpreter.debug("Bsh method invoke: ", this.name, " overrideNameSpace: ", overrideNameSpace);
         if ( argValues != null )
             for (int i=0; i<argValues.length; i++)
@@ -283,7 +290,7 @@ public class BshMethod implements Serializable, Cloneable, BshClassManager.Liste
                 else
                     Interpreter.mainSecurityGuard.canInvokeMethod(javaObject, javaMethod.getName(), argValues);
 
-                return javaMethod.invoke(javaObject, argValues);
+                return javaMethod.invokeWithArguments(javaObject, arguments);
             } catch ( ReflectError e ) {
                 throw new EvalError(
                     "Error invoking Java method: "+e, callerInfo, callstack );
@@ -527,8 +534,7 @@ public class BshMethod implements Serializable, Cloneable, BshClassManager.Liste
 
         // when cloning a generated class deep copy This reference #421
         if ("clone".equals(getName())) {
-            String className = ret.getClass().getSimpleName();
-            This thiz = Reflect.getClassInstanceThis(ret, className);
+            This thiz = Reflect.getClassInstanceThis(ret, ret.getClass());
             if (null != thiz) // not a generated class instance
                 return thiz.cloneMethodImpl(callerInfo, callstack, ret);
         }

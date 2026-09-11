@@ -81,6 +81,31 @@ public class ClassGeneratorTest {
         assertEquals(1, ( (IntSupplier) oa[1] ).getAsInt());
     }
 
+    @Test
+    public void large_constructor_dispatch_preserves_constructors() throws Exception {
+        StringBuilder script = new StringBuilder(
+                "class LargeConstructorDispatch {"
+                + "String result;"
+                + "LargeConstructorDispatch() { this(\"chained\"); }");
+        // Each overload adds a branch to every constructor's dispatch switch.
+        // These signatures make the early jumps exceed a signed 16-bit offset.
+        for (int count = 1; count <= 95; count++) {
+            script.append("LargeConstructorDispatch(");
+            for (int parameter = 0; parameter < count; parameter++) {
+                if (parameter > 0) {
+                    script.append(", ");
+                }
+                script.append("String p").append(parameter);
+            }
+            script.append(") { result = p0; }");
+        }
+        script.append("}");
+
+        assertEquals("chained:direct", eval(script.toString(),
+                "return new LargeConstructorDispatch().result + \":\""
+                + " + new LargeConstructorDispatch(\"direct\").result;"));
+    }
+
 
     @Test
     public void call_protected_constructor_from_script() throws Exception {
@@ -386,5 +411,72 @@ public class ClassGeneratorTest {
         eval("interface Test { public static int x = 1; }");
         eval("interface Test { static int x = 1; }");
         eval("interface Test { int x = 1; }");
+    }
+
+    @Test
+    public void scripted_overload_uses_declared_type_of_null_argument() throws Exception {
+        assertEquals("Object", eval(
+            "class NullOverloadA {",
+                "public String test(Object o) { return \"Object\"; }",
+                "public String test(Integer i) { return \"Integer\"; }",
+            "}",
+            "Object o = null;",
+            "return new NullOverloadA().test(o);"));
+    }
+
+    @Test
+    public void java_call_to_generated_overload_runs_that_overload() throws Exception {
+        Object instance = eval(
+            "class NullOverloadB {",
+                "public String test(Object o) { return \"Object\"; }",
+                "public String test(Integer i) { return \"Integer\"; }",
+            "}",
+            "return new NullOverloadB();");
+        assertEquals("Object", instance.getClass()
+            .getMethod("test", Object.class).invoke(instance, new Object[] {null}));
+    }
+
+    @Test
+    public void enum_overload_uses_declared_type_of_null_argument() throws Exception {
+        assertEquals("Object", eval(
+            "enum NullOverloadE { A;",
+                "public String test(Object o) { return \"Object\"; }",
+                "public String test(Integer i) { return \"Integer\"; }",
+            "}",
+            "Object o = null;",
+            "e = NullOverloadE.A;",
+            "return e.test(o);"));
+    }
+
+    @Test
+    public void scripted_overload_dispatches_non_null_by_runtime_type() throws Exception {
+        assertEquals("Integer", eval(
+            "class NullOverloadC {",
+                "public String test(Object o) { return \"Object\"; }",
+                "public String test(Integer i) { return \"Integer\"; }",
+            "}",
+            "Object o = Integer.valueOf(5);",
+            "return new NullOverloadC().test(o);"));
+    }
+
+    @Test
+    public void subclass_with_same_simple_name_calls_inherited_method() throws Exception {
+        assertEquals("pkg383.A", eval(
+            "package pkg383;",
+            "public class A { public String name() { return \"pkg383.A\"; } }",
+            "package pkg383.sub;",
+            "public class A extends pkg383.A {}",
+            "return new pkg383.sub.A().name();"
+        ));
+    }
+
+    @Test
+    public void class_method_does_not_hide_command_taking_other_arguments() throws Exception {
+        Interpreter bsh = new Interpreter();
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        bsh.setOut(new java.io.PrintStream(out));
+        bsh.eval("package pkg383p; public class Printer { public void print() { print(\"from command\"); } }");
+        bsh.eval("new pkg383p.Printer().print();");
+        assertThat(out.toString(), containsString("from command"));
     }
 }

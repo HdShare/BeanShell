@@ -1,67 +1,53 @@
 # BeanShell changelog
 
-## 3.x (unreleased)
 
-The [script migration guide](MIGRATION.md) records scoping, undefined-value,
-primitive, arithmetic, null/varargs, and overload changes with examples and
-version-specific comparisons.
+## 3.0.0 (in progress)
 
-### Pending pull requests
+Work has resumed on the long-dormant 3.0 development line (`master`; the JAR targets Java 8 and is tested on Java 8 through 25) after a multi-year gap. This entry will grow as the release is prepared; changes so far:
 
-The following changes were still unmerged on 8 September 2026. These notices
-describe the linked PRs, not a released version or a combined build of them.
+BeanShell could fail to start, or silently report the wrong version, when another JAR earlier on a shared classpath also provided a root-level `version.properties` (#736, #783). BeanShell's own version metadata is now packaged and loaded from a namespaced `bsh/version.properties` resource instead.
 
-- **Build and runtime JDK (#791):** The parser generator
-  `ph-javacc-maven-plugin` 5.0.2 needs JDK 17 or newer. The JAR targets
-  Java 8 and still runs on Java 8. The released generator fixes buffer growth
-  and wrapping for long tokens. The build no longer patches the generated
-  parser source. We built the PR artifact on JDK 17. We tested it with Java 8, 11,
-  17, and 21. [#791](https://github.com/beanshell/beanshell/pull/791)
-- **Version metadata resource (#790):** The packaged resource moves from root
-  `version.properties` to `bsh/version.properties`. This prevents collisions
-  with other JARs. If your integration reads this resource directly, update
-  the path. To get the BeanShell version, use `Interpreter.VERSION`.
-  Both Maven and Ant use the new resource destination.
-  [#790](https://github.com/beanshell/beanshell/pull/790)
-- **Parser comment APIs and bshdoc (#794):** Formal comments become special
-  tokens instead of `BSHFormalComment` AST nodes. To read comments before an
-  AST node, use
-  `Parser.getFormalCommentsBeforeNode(node)` or
-  `Parser.getAllCommentsBeforeNode(node)`. After the parsing loop, use
-  `Parser.getFormalCommentsBeforeToken(parser.getToken(0))` for formal comments
-  attached to the end-of-file (EOF) token. The PR removes `BSHFormalComment`,
-  `ParserConstants.FORMAL_COMMENT`, and the node entry for formal comments.
+Unary operators (`++`, `--`, unary `+`/`-`, `~`) previously rejected boxed numeric and character wrapper types (`Byte`, `Short`, `Character`, `Integer`, `Long`, `Float`, `Double`, `BigInteger`, `BigDecimal`), throwing `EvalError` for code as simple as `Integer i = new Integer(0); ++i;` (#762). These now behave consistently with primitives, including correct boxed results for increment/decrement.
 
-  The `bshdoc` script includes file and method documentation. It accepts a
-  first file comment attached to EOF. This also works for files that contain
-  only comments. It no longer prints debug messages to stderr. Its list helper
-  changes from `bshdoc(String[])` to `bshdocl(String[])`. The command-line form
-  `bshdoc file [file ...]` remains the same.
-  [#794](https://github.com/beanshell/beanshell/pull/794)
-- **Signatures for array parameters (#793):** BeanShell uses dimensions from
-  brackets after the parameter name to create JVM method and constructor
-  descriptors. For example, Java reflection reports `String values[]` as
-  `String[]` and `String[] values[]` as `String[][]`. For Java reflection, use
-  the complete parameter type. The migration guide describes the changes to
-  overloads in scripts.
-  [#793](https://github.com/beanshell/beanshell/pull/793)
+Fixed a method-lookup regression from BeanShell 2.0b5 where overload resolution mismatched array-typed parameters against scalar arguments in some declaration orders (#731), plus follow-on gaps in split array dimensions (`String[] values[]`) and generated JVM method/constructor descriptors for array parameters.
 
-Other fixes do not require script migration steps:
+Fixed numeric reference casts such as `(Number) Double.valueOf(1)`, which previously threw `ClassCastException`, while preserving the original object identity across casts and assignments (#725).
 
-- The PR updates bundled ASM to 9.10.1. Generated constructors still work after
-  long-jump rewriting. The relocated package and Java 8 target remain the same.
-  [#788](https://github.com/beanshell/beanshell/pull/788)
-- The PR keeps replacement cache entries during stale-reference cleanup. The
-  member cache initializes only when BeanShell needs reflection metadata. These
-  fixes address correctness. We make no claim about performance.
-  [#789](https://github.com/beanshell/beanshell/pull/789)
-- The PRs correct long-token parsing and permit formal comments within statements.
-  [#791](https://github.com/beanshell/beanshell/pull/791),
-  [#794](https://github.com/beanshell/beanshell/pull/794)
-- The PRs correct numeric reference casts and boxed unary operations. The migration
-  guide explains how to remove the associated workarounds.
-  [#792](https://github.com/beanshell/beanshell/pull/792),
-  [#795](https://github.com/beanshell/beanshell/pull/795)
+Fixed a parser input-buffer defect where long string literals, identifiers, or comments could corrupt the parser's buffer position when a token crossed a buffer growth or wraparound boundary, causing `ArrayIndexOutOfBoundsException`, parse errors, or incorrect token contents (#734, #743). The fix comes from upgrading the parser generator (`ph-javacc-maven-plugin` 5.0.2, ParserGeneratorCC 2.0.3), so building BeanShell from source now requires JDK 17 or newer; the resulting JAR still targets Java 8.
+
+Float arithmetic now follows Java's numeric promotion (#767). `+`, `-`, `*`, `/` and `%` on `float` operands, including `float` mixed with `byte`, `short`, `char`, `int` or `long`, are computed in `float` and return `Float` instead of being widened to `double`. This deliberately changes the behavior documented in #71: a float result that overflows is now `Infinity` rather than a larger `Double` (for example `Float.MAX_VALUE * 2`), and compound assignments such as `long += float` round through `float` as compiled Java does. Arithmetic involving `double`, `BigInteger` or `BigDecimal` is unchanged.
+
+Fixed intermittent wrong-variable lookups in nested blocks and loops (#659). An internal cache treated any two keys with the same hash code as the same entry, so a block could occasionally be given another block's namespace; the class-member cache had the same flaw. The cache now compares keys exactly.
+
+When a class declares a real method whose name matches one of its property accessors, BeanShell could call the accessor instead: for example, calling `level(...)` could run `setLevel(...)`, and `up()` could run `isUp()` (#780). Real methods now take precedence, and a class that only defines `isUp()` can still be called as `up()`.
+
+Updated the bundled ASM bytecode library to 9.10.1, still relocated under `bsh.org.objectweb.asm`. This fixes scripted classes with many overloaded constructors, which could fail with `Can't find default constructor` (#788).
+
+Passing a bare `null` to a Java varargs method or constructor now passes a null array, as compiled Java does, instead of wrapping it in a one-element array (#778). More generally, a bare `null` argument now matches array-typed overloads: `String.valueOf(null)` and `Arrays.asList(null)` now throw `NullPointerException`, as in Java, where they previously returned `"null"` and `[null]`. `(Object) null` still passes a single null element.
+
+An error that escapes a `try` block uncaught, whether through `finally` or because no `catch` matches, is now reported at the line where it occurred instead of at the `try` statement (#726).
+
+Fixed two defects in the `desktop()` command reported by gary_nunes (#416): the taskbar button listener used its frame before checking it for null, so an action from a button with no registered frame threw a `NullPointerException`; and the desktop's context menu opened on any mouse press. It now opens only on the platform's popup trigger, checked on both press and release as `MouseEvent.isPopupTrigger()` requires for cross-platform behavior.
+
+Calling an overloaded method of a scripted class or enum with a variable that is declared as a reference type but holds `null` now selects the overload for the declared type, as compiled Java does (#150): `Object o = null; x.test(o)` calls `test(Object)` rather than `test(Integer)`. Java code that calls a specific method of a generated class, such as `test(Object)`, now runs that scripted overload for any argument; previously the argument's runtime type could re-select `test(Integer)`. In script code, overload selection for non-null values is unchanged.
+
+Tab completion in the Swing console (`JConsole`) no longer corrupts the command line when several completions are shown (#292). With Windows line endings the command boundary drifted into the prompt, so pressing Enter sent part of the prompt to the interpreter, and a prompt on the first line was reprinted without its first character.
+
+Pressing Enter after pasting a large block of code into the Swing console (`JConsole`) no longer freezes it (#585). The command was written into the interpreter's input pipe on the Swing event thread; once the 64 KB pipe filled, the event thread waited for the interpreter to read more, while the interpreter waited for the event thread to print its output. Commands are now written to the pipe on a separate thread, in order.
+
+`JConsole.addHistory(String)` adds a line to the Swing console's command history, so applications can preload commands that the user recalls with the up arrow (#405).
+
+Fixed scripted classes whose subclass has the same simple name as its superclass, for example `a.b.A extends a.A`: calling an inherited method threw `NullPointerException` because the superclass's instance state was never initialized (#383). Also, a non-varargs Java method with only one overload is no longer selected for a call with more arguments than it accepts. Such a call now reports the method as not found instead of throwing `ArrayIndexOutOfBoundsException`, so a scripted class method such as `print()` no longer hides the `print` command when called with an argument.
+
+Scripts evaluated from deep call stacks no longer slow down in proportion to the stack depth (#551). Reaching the end of each evaluated script created exceptions whose stack traces grew with the caller's stack; the interpreter now signals end of input to the parser with a reused exception that carries no stack trace. In a benchmark of 5,000 `eval("'abc'+'def'")` calls at a stack depth of 1,000 on Java 8, the time dropped from about 115 ms to 17 ms, the same as at depth 0.
+
+Fixed a parse error when a method-call argument, wrapped in extra parentheses, contained an anonymous class declaring a method with a class return type, for example `print(((String) new Supplier() { public Object get() { return "2"; }}.get()));` (#423).
+
+Extended the null-varargs fix (#778) to three more places a null argument's declared type was lost, causing the same wrong-array-vs-wrong-element dispatch: an assignment expression used directly as a call argument (`Target.objects(object = null)`), a bean property getter accessed with dot or brace syntax (`bean.foo`, `bean{"foo"}`), and a ternary expression (`cond ? object : object`). Also fixed anonymous-class construction, which lost the same type information because the generated constructor's `super()` call is static per-argument-slot bytecode with no vararg-wrapping logic of its own: `new Target(object) {}` now matches `new Target(object)`.
+
+Restored weak and soft key behavior in the class-member and block-namespace caches (#659). Their replacement kept cache keys in a plain `HashMap`, so a key (and, transitively, the `NameSpace` or `Class` it held onto) stayed reachable until its value happened to be garbage collected and the cache's periodic cleanup ran, regardless of whether anything outside the cache still referenced it.
+
+Packaged the ASM library's BSD-3-Clause license notice into the binary JAR at `META-INF/licenses/ASM-LICENSE.txt` (#788); it previously shipped with the vendored, relocated ASM classes but not their license.
 
 ## 2.1.1
 

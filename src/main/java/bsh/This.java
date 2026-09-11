@@ -308,13 +308,27 @@ public final class This implements java.io.Serializable, Runnable
             boolean declaredOnly  )
             throws EvalError
     {
+        return invokeMethod(methodName, null, args, declaredOnly);
+    }
+
+    /**
+        Class generated method stub entry that selects the scripted method
+        by the stub's own parameter types rather than the argument values.
+     */
+    public Object invokeMethod(
+            String methodName, Class<?>[] paramTypes, Object [] args,
+            boolean declaredOnly  )
+            throws EvalError
+    {
         CallStack callstack = new CallStack(namespace);
         Node node = namespace.getNode();
         namespace.setNode(null);
+        CallArguments arguments = null == paramTypes
+                ? new CallArguments(args) : new CallArguments(args, paramTypes);
         try {
             Object ret = invokeMethod(
-                    methodName, args, declaringInterpreter,
-                    callstack, node, declaredOnly);
+                    methodName, arguments, declaringInterpreter,
+                    callstack, node, declaredOnly, null);
             // manually unwrap primitives excluding void
             if (ret instanceof Primitive && ret != Primitive.VOID)
                 return ((Primitive)ret).getValue();
@@ -366,8 +380,14 @@ public final class This implements java.io.Serializable, Runnable
         boolean declaredOnly  )
         throws EvalError
     {
-        if (args == null)
-            args = Reflect.ZERO_ARGS;
+        return invokeMethod(methodName, new CallArguments(args), interpreter,
+                callstack, callerInfo, declaredOnly, null);
+    }
+
+    Object invokeMethod(String methodName, CallArguments arguments, Interpreter interpreter,
+            CallStack callstack, Node callerInfo, boolean declaredOnly,
+            CallArguments.Result resultType) throws EvalError {
+        Object[] args = arguments.values;
 
         if ( interpreter == null )
             interpreter = declaringInterpreter;
@@ -379,12 +399,14 @@ public final class This implements java.io.Serializable, Runnable
             callerInfo = Node.JAVACODE;
 
         // Find the bsh method
-        Class<?>[] types = Types.getTypes( args );
+        Class<?>[] types = arguments.types;
         BshMethod bshMethod = Reflect.getMethod(
             namespace, methodName, types, declaredOnly );
 
-        if ( bshMethod != null )
-            return bshMethod.invoke( args, interpreter, callstack, callerInfo );
+        if (bshMethod != null) {
+            if (resultType != null) resultType.type = bshMethod.getReturnType();
+            return bshMethod.invoke(arguments, interpreter, callstack, callerInfo, false);
+        }
 
         /*
             No scripted method of that name.
@@ -490,8 +512,8 @@ public final class This implements java.io.Serializable, Runnable
             }
 
             // update This reference in cloned instance
-            Reflect.getLHSObjectField(clonedInstance,
-                BSHTHIS + ns.classStatic.getSimpleName())
+            new LHS(clonedInstance, Reflect.resolveExpectedJavaField(ns.classStatic,
+                BSHTHIS + ns.classStatic.getSimpleName(), false/*staticOnly*/))
                     .assign(ns.getThis(declaringInterpreter));
 
         } catch (NoSuchMethodException | SecurityException | InstantiationException
@@ -657,19 +679,20 @@ public final class This implements java.io.Serializable, Runnable
      * the instance initializer and scripted constructor in the instance
      * namespace.
      */
-    public static void initInstance(GeneratedClass instance, String className, Object[] args) {
+    public static void initInstance(GeneratedClass instance, Class<?> genClass, Object[] args) {
+        String className = genClass.getSimpleName();
         try {
-            This instanceThis = initClassInstanceThis(instance, className);
+            This instanceThis = initClassInstanceThis(instance, genClass);
             NameSpace instanceNameSpace = instanceThis.getNameSpace();
 
             // if this is a super constructor we need to initialize the parent's instance This
-            List<String> parentNames = new ArrayList<>();
+            List<Class<?>> parents = new ArrayList<>();
             Class<?> clas = instance.getClass();
-            while ( null != clas && !clas.getSimpleName().equals(className) ) {
-                parentNames.add(0, clas.getSimpleName());
+            while ( null != clas && clas != genClass ) {
+                parents.add(0, clas);
                 clas = clas.getSuperclass();
             }
-            parentNames.forEach(name -> initClassInstanceThis(instance, name));
+            parents.forEach(parent -> initClassInstanceThis(instance, parent));
 
             if ( instanceNameSpace.isEnum
                     && This.CONTEXT_ARGS.get().containsKey( instance.toString()) )
@@ -707,7 +730,7 @@ public final class This implements java.io.Serializable, Runnable
 
     /**
      * Register actual context, used by generated class constructor, which calls
-     * {@link #initInstance(GeneratedClass, String, Object[])}.
+     * {@link #initInstance(GeneratedClass, Class, Object[])}.
      */
     static void registerConstructorContext(CallStack callstack, Interpreter interpreter) {
         if (callstack != null)
@@ -722,16 +745,17 @@ public final class This implements java.io.Serializable, Runnable
 
     /** Initialize the class instance This field and evaluate instance init block.
      * @param instance the instance this from class <init>
-     * @param className the name of instance relative
+     * @param genClass the generated class level to initialize
      * @return instance This */
-    private static This initClassInstanceThis(Object instance, String className) {
-        This instanceThis = Reflect.getClassInstanceThis(instance, className);
+    private static This initClassInstanceThis(Object instance, Class<?> genClass) {
+        String className = genClass.getSimpleName();
+        This instanceThis = Reflect.getClassInstanceThis(instance, genClass);
         if (null == instanceThis) {
             // Create the instance 'This' namespace, set it on the object
             // instance and invoke the instance initializer
 
             // Get the static This reference from the proto-instance
-            This classStaticThis = Reflect.getClassStaticThis(instance.getClass(), className);
+            This classStaticThis = Reflect.getClassStaticThis(genClass, className);
 
             // Create the instance namespace
             NameSpace instanceNameSpace = classStaticThis.getNameSpace().copy();
@@ -744,7 +768,8 @@ public final class This implements java.io.Serializable, Runnable
             else
                 instanceThis = instanceNameSpace.getThis(classStaticThis.declaringInterpreter);
             try {
-                LHS lhs = Reflect.getLHSObjectField(instance, BSHTHIS + className);
+                LHS lhs = new LHS(instance, Reflect.resolveExpectedJavaField(
+                    genClass, BSHTHIS + className, false/*staticOnly*/));
                 lhs.assign(instanceThis, false/*strict*/);
             } catch (Exception e) {
                 throw new InterpreterError("Error in class gen setup: " + e, e);

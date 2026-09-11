@@ -15,19 +15,27 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java: [ '8', '11', '17', '21' ]
+        java: [ '8', '11', '17', '21', '25' ]
 
-    name: Java ${{ matrix.java }} build
+    name: Java ${{ matrix.java }} tests (JDK 17 build)
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup Java
-      uses: actions/setup-java@v2
+    - uses: actions/checkout@v7
+    - name: Setup test Java
+      uses: actions/setup-java@v6
       with:
         java-version: ${{ matrix.java }}
-        distribution: 'adopt'
+        distribution: 'temurin'
         cache: maven
-    - name: Build with Maven
-      run: mvn -B verify package --file pom.xml
+    - name: Record test Java
+      run: echo "TEST_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+    - name: Setup build Java
+      uses: actions/setup-java@v6
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+    - name: Build and test with Maven
+      run: mvn -B clean verify --file pom.xml -Djvm="$TEST_JAVA_HOME/bin/java"
     - name: Codecov
       uses: codecov/codecov-action@v4
       env:

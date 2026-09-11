@@ -363,9 +363,9 @@ class Types {
             return true;
 
         // null rhs type corresponds to type of Primitive.NULL
-        // assignable to any object type but not array
+        // assignable to any reference type, including an array.
         if (rhsType == null)
-            return !lhsType.isPrimitive() && !lhsType.isArray();
+            return !lhsType.isPrimitive();
 
         // prim numeric type can be boxed and assigned to number
         if ( lhsType == Number.class
@@ -555,8 +555,8 @@ class Types {
     */
     public static Object castObject( Class<?> toType, Class<?> fromType, Object fromValue,
             int operation, boolean checkOnly ) throws UtilEvalError {
-        // assignment to loose type, void type, or exactly same type
-        if ( toType == null || arrayElementType(toType) == arrayElementType(fromType) )
+        // assignment to void type, or exactly same type
+        if ( toType == null || toType == fromType )
             return checkOnly ? VALID_CAST :
                 fromValue;
 
@@ -611,6 +611,12 @@ class Types {
                 return checkOnly ? VALID_CAST : Primitive.unwrap(fromValue);
             }
 
+            // Preserve directly assignable numeric references without conversion.
+            // Type-only checks have a null fromValue and use the reference path below.
+            if (fromType != null && !fromType.isPrimitive() &&
+                toType.isAssignableFrom( fromType ))
+                return fromValue;
+
             // Primitive to arbitrary object type.
             // Allow Primitive.castToType() to handle it as well as cases of
             // Primitive.NULL and Primitive.VOID
@@ -625,7 +631,7 @@ class Types {
         if ( toType.isAssignableFrom( fromType ) )
             return checkOnly ? VALID_CAST
                 : Reflect.isGeneratedClass(toType) && !Proxy.isProxyClass(fromType)
-                ? Reflect.getClassInstanceThis(fromValue, toType.getSimpleName())
+                ? Reflect.getClassInstanceThis(fromValue, toType)
                 : fromValue;
 
         // Allow This to pass as typed variable if classStatic is toType
@@ -774,25 +780,4 @@ class Types {
             || Entry.class.isAssignableFrom(clas);
     }
 
-    /**
-     * Just a method to return the pretty name of any Class
-     *
-     * <pre>
-     * prettyName(String.class)
-     *  returns "java.lang.String"
-     * prettyName(byte.class)
-     *  returns "byte"
-     * prettyName((new Object[3]).getClass())
-     *  returns "java.lang.Object[];"
-     * prettyName((new int[3][4][5][6][7][8][9]).getClass())
-     *  returns "int[][][][][][][]"
-     * </pre>
-     */
-    public static String prettyName(Class<?> clas) {
-        if (!clas.isArray()) return clas.getName();
-
-        // Return a string like "int[]", "double[]", "double[][]", etc...
-        Class<?> arrayType = clas.getComponentType();
-        return prettyName(arrayType) + "[]";
-    }
 }

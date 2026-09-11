@@ -1,0 +1,25 @@
+#!/bin/java bsh.Interpreter
+
+source("TestHarness.bsh");
+
+import java.util.function.Supplier;
+
+/*
+ * #423 anonymous class bodies declaring methods with a reference return
+ * type, inside a parenthesized method argument.
+ */
+assert("2".equals(((String)new Supplier() { public Object get() { return "2"; }}.get())));
+
+value = String.valueOf(((String)new Supplier() { public Object get() { return "3"; }}.get()));
+assert(value.equals("3"));
+
+id(o) { return o; }
+supplier = id(((Supplier) new Supplier() { public Object get() { return "4"; }}));
+assert(supplier.get().equals("4"));
+
+assert("5".equals(id((new Supplier() { public Object get() { return "5"; }}.get()))));
+
+list = id(((Object) new Object() { java.util.List get() { return null; } }));
+assert(list != null);
+
+complete();

@@ -32,6 +32,8 @@ import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.CompletionException;
 
+import bsh.security.SecurityError;
+
 /**
     New object, new array, or inner class style allocation with body.
 */
@@ -77,7 +79,8 @@ class BSHAllocationExpression extends SimpleNode
     )
         throws EvalError
     {
-        Object[] args = argumentsNode.getArguments( callstack, interpreter );
+        CallArguments arguments = argumentsNode.getCallArguments(callstack, interpreter);
+        Object[] args = arguments.values;
         if ( args == null)
             throw new EvalError( "Null args in new.", this, callstack );
 
@@ -111,9 +114,9 @@ class BSHAllocationExpression extends SimpleNode
                     type, args, body, callstack, interpreter );
             else
                 return constructWithClassBody(
-                    type, args, body, callstack, interpreter );
+                    type, arguments, body, callstack, interpreter );
         } else
-            return constructObject( type, args, callstack, interpreter );
+            return constructObject(type, arguments, callstack, interpreter);
     }
 
     Object constructFromEnclosingInstance(Object obj, CallStack callstack,
@@ -123,10 +126,9 @@ class BSHAllocationExpression extends SimpleNode
         if (jjtGetChild(0) instanceof BSHAmbiguousName)
             typeString = ((BSHAmbiguousName) jjtGetChild(0)).text;
 
-        Object[] args = null;
+        CallArguments arguments = new CallArguments(Reflect.ZERO_ARGS);
         if (jjtGetChild(1) instanceof BSHArguments)
-            args = ((BSHArguments) jjtGetChild(1)).getArguments(
-                        callstack, interpreter);
+            arguments = ((BSHArguments) jjtGetChild(1)).getCallArguments(callstack, interpreter);
 
         Class<?> type = null;
         for (Class<?> t : obj.getClass().getDeclaredClasses())
@@ -136,14 +138,14 @@ class BSHAllocationExpression extends SimpleNode
             }
 
         try {
-            return Reflect.constructObject( type, obj, args );
+            return Reflect.constructWithArguments(type, obj, arguments);
         } catch (InvocationTargetException e) {
             throw new TargetError("Object constructor", e.getCause(),
                     this, callstack, true);
         }
     }
 
-    private Object constructObject(Class<?> type, Object[] args,
+    private Object constructObject(Class<?> type, CallArguments arguments,
             CallStack callstack, Interpreter interpreter ) throws EvalError {
         final boolean isGeneratedClass = Reflect.isGeneratedClass(type);
         if (isGeneratedClass) {
@@ -151,7 +153,7 @@ class BSHAllocationExpression extends SimpleNode
         }
         Object obj;
         try {
-            obj = Reflect.constructObject( type, args );
+            obj = Reflect.constructWithArguments(type, null, arguments);
         } catch ( ReflectError e) {
             throw new EvalException(
                 "Constructor error: " + e.getMessage(), this, callstack, e);
@@ -188,19 +190,19 @@ class BSHAllocationExpression extends SimpleNode
     }
 
     private Object constructWithClassBody(
-        Class<?> type, Object[] args, BSHBlock block,
+        Class<?> type, CallArguments arguments, BSHBlock block,
         CallStack callstack, Interpreter interpreter )
         throws EvalError
     {
         String anon = "anon" + (++innerClassCount);
         String name = callstack.top().getName().replace('/', '_') + "$" + anon;
-        This.CONTEXT_ARGS.get().put(anon, args);
+        This.CONTEXT_ARGS.get().put(anon, superConstructorArgs(type, arguments));
         Modifiers modifiers = new Modifiers(Modifiers.CLASS);
         Class<?> clas = ClassGenerator.getClassGenerator().generateClass(
                 name, modifiers, null/*interfaces*/, type/*superClass*/,
                 block, ClassGenerator.Type.CLASS, callstack, interpreter );
         try {
-            return Reflect.constructObject( clas, args );
+            return Reflect.constructWithArguments( clas, null, arguments );
         } catch ( Exception e ) {
             Throwable cause = e;
             if ( e instanceof InvocationTargetException )
@@ -208,6 +210,26 @@ class BSHAllocationExpression extends SimpleNode
             throw new EvalException("Error constructing inner class instance: "
                 + e, this, callstack, cause);
         }
+    }
+
+    /** The generated anonymous-class constructor forwards to super() using
+     * static per-slot bytecode with no vararg awareness of its own, so the
+     * vararg tail must already be wrapped (or not) correctly here, using the
+     * same declared-type reasoning as an ordinary varargs invocation. */
+    private static Object[] superConstructorArgs(Class<?> type, CallArguments arguments) {
+        Invocable con = BshClassManager.memberCache.get(type)
+                .findMethod(type.getName(), arguments.types);
+        if ( con == null || !con.isVarArgs() || (con.isInnerClass() && !con.isStatic())
+                || con.isFixedArity(arguments) )
+            return arguments.values;
+        int lastIndex = con.getParameterCount() - 1;
+        if ( lastIndex < 0 || lastIndex >= arguments.values.length )
+            return arguments.values;
+        Object[] wrapped = new Object[con.getParameterCount()];
+        System.arraycopy(arguments.values, 0, wrapped, 0, lastIndex);
+        wrapped[lastIndex] = java.util.Arrays.copyOfRange(
+                arguments.values, lastIndex, arguments.values.length);
+        return wrapped;
     }
 
     private Object constructWithInterfaceBody(

@@ -50,6 +50,9 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 import javax.swing.Icon;
 import javax.swing.JMenuItem;
@@ -79,16 +82,25 @@ import bsh.FileReader;
 */
 public class JConsole extends JScrollPane
     implements GUIConsoleInterface, Runnable, KeyListener,
-    MouseListener, ActionListener, PropertyChangeListener
+    MouseListener, ActionListener, PropertyChangeListener, AutoCloseable
 {
     private final static String CUT = "Cut";
     private final static String COPY = "Copy";
     private final static String PASTE = "Paste";
 
-    private OutputStream outPipe;
+    private volatile OutputStream outPipe;
+    // Pipe writes stay off the event thread: with a full pipe, a reader printing to the console deadlocks it.
+    private final ExecutorService pipeWriter = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "JConsole pipe writer");
+        t.setDaemon(true);
+        return t;
+    });
     private InputStream inPipe;
     private InputStream in;
     private PrintStream out;
+    private final boolean ownsInPipe;
+    private Thread inPipeWatcherThread;
+    private volatile boolean closed;
 
     public InputStream getInputStream() { return in; }
     public Reader getIn() { return new FileReader(in); }
@@ -165,6 +177,7 @@ public class JConsole extends JScrollPane
         }
 
         inPipe = cin;
+        ownsInPipe = inPipe == null;
         if ( inPipe == null ) {
             PipedOutputStream pout = new PipedOutputStream();
             try {
@@ -173,9 +186,9 @@ public class JConsole extends JScrollPane
             } catch ( IOException e ) { print("Console internal error: "+e); }
         }
         // Start the inpipe watcher
-        Thread thread = new Thread( this );
-        thread.setDaemon(true);
-        thread.start();
+        inPipeWatcherThread = new Thread( this, "JConsole pipe watcher" );
+        inPipeWatcherThread.setDaemon(true);
+        inPipeWatcherThread.start();
 
         requestFocus();
     }
@@ -298,12 +311,8 @@ public class JConsole extends JScrollPane
                 break;
 
             case KeyEvent.VK_TAB :
-                if (e.getID() == KeyEvent.KEY_RELEASED) {
-                    String part = text.getText();
-                    if ( null == part )
-                        break;
-                    doCommandCompletion( part.substring( cmdStart ) );
-                }
+                if (e.getID() == KeyEvent.KEY_RELEASED)
+                    doCommandCompletion( getCmd() );
                 e.consume();
                 break;
 
@@ -368,13 +377,15 @@ public class JConsole extends JScrollPane
 
         // Found ambiguous, show (some of) them
 
-        String line = text.getText();
-        if ( null == line )
-            line = "";
-        String command = line.substring( cmdStart );
-        // Find prompt
-        for(i=cmdStart; line.charAt(i) != '\n' && i > 0; i--);
-        String prompt = line.substring( i+1, cmdStart );
+        String command = getCmd();
+        String prompt = "";
+        try {
+            String before = text.getText(0, cmdStart);
+            prompt = before.substring( before.lastIndexOf('\n') + 1 );
+        } catch (BadLocationException e) {
+            // should not happen
+            System.out.println("Internal JConsole Error: "+e);
+        }
 
         // Show ambiguous
         StringBuilder sb = new StringBuilder("\n");
@@ -449,6 +460,10 @@ public class JConsole extends JScrollPane
         return s;
     }
 
+    public synchronized void addHistory(String line) {
+        history.add(line);
+    }
+
     private void historyUp() {
         if ( history.size() == 0 )
             return;
@@ -504,15 +519,28 @@ public class JConsole extends JScrollPane
 
         if (outPipe == null )
             print("Console internal error: cannot output ...", Color.red);
-        else
+        else {
+            final byte[] bytes = line.getBytes(StandardCharsets.UTF_8);
             try {
-                outPipe.write( line.getBytes(StandardCharsets.UTF_8) );
-                outPipe.flush();
-            } catch ( IOException e ) {
-                outPipe = null;
-                throw new RuntimeException("Console pipe broken...");
+                pipeWriter.execute(() -> writeToPipe(bytes));
+            } catch (RejectedExecutionException e) {
+                // console has been closed; drop the input
             }
+        }
         //text.repaint();
+    }
+
+    private void writeToPipe(byte[] bytes) {
+        OutputStream pipe = outPipe;
+        if (pipe == null)
+            return;
+        try {
+            pipe.write(bytes);
+            pipe.flush();
+        } catch ( IOException e ) {
+            outPipe = null;
+            print("Console pipe broken...\n", Color.red);
+        }
     }
 
     public void println(Object o) {
@@ -699,7 +727,8 @@ public class JConsole extends JScrollPane
         try {
             inPipeWatcher();
         } catch ( IOException e ) {
-            print("Console: I/O Error: "+e+"\n", Color.red);
+            if (!closed)
+                print("Console: I/O Error: "+e+"\n", Color.red);
         }
     }
 
@@ -822,6 +851,21 @@ public class JConsole extends JScrollPane
     }
 
     private int textLength() { return text.getDocument().getLength(); }
+
+    /** Stops the pipe writer and pipe watcher threads without blocking the caller. */
+    @Override
+    public void close() {
+        closed = true;
+        pipeWriter.shutdownNow();
+        inPipeWatcherThread.interrupt();
+        if (ownsInPipe) {
+            try {
+                inPipe.close();
+            } catch (IOException e) {
+                // already tearing down
+            }
+        }
+    }
 
 }
 

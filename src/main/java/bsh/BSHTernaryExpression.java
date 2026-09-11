@@ -40,15 +40,22 @@ class BSHTernaryExpression extends SimpleNode {
     public Object eval( CallStack callstack, Interpreter interpreter)
         throws EvalError
     {
+        return eval(callstack, interpreter, null);
+    }
+
+    /** Evaluate the selected branch, optionally reporting its declared type
+     * when the result is null. */
+    Object eval(CallStack callstack, Interpreter interpreter, CallArguments.Result result)
+            throws EvalError {
         Node
             cond = jjtGetChild(0),
             evalTrue = jjtGetChild(1),
             evalFalse = jjtGetChild(2);
 
-        if ( BSHIfStatement.evaluateCondition( cond, callstack, interpreter ) )
-            return evalTrue.eval( callstack, interpreter );
-        else
-            return evalFalse.eval( callstack, interpreter );
+        Node branch = BSHIfStatement.evaluateCondition( cond, callstack, interpreter )
+                ? evalTrue : evalFalse;
+        return result == null ? branch.eval( callstack, interpreter )
+                : CallArguments.eval( branch, callstack, interpreter, result );
     }
 
 }

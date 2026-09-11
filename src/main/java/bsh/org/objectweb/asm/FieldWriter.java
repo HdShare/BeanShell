@@ -69,8 +69,32 @@ final class FieldWriter extends FieldVisitor {
   private int constantValueIndex;
 
   /**
+   * The last runtime visible annotation of this field. The previous ones can be accessed with the
+   * {@link AnnotationWriter#previousAnnotation} field. May be {@literal null}.
+   */
+  private AnnotationWriter lastRuntimeVisibleAnnotation;
+
+  /**
+   * The last runtime invisible annotation of this field. The previous ones can be accessed with the
+   * {@link AnnotationWriter#previousAnnotation} field. May be {@literal null}.
+   */
+  private AnnotationWriter lastRuntimeInvisibleAnnotation;
+
+  /**
+   * The last runtime visible type annotation of this field. The previous ones can be accessed with
+   * the {@link AnnotationWriter#previousAnnotation} field. May be {@literal null}.
+   */
+  private AnnotationWriter lastRuntimeVisibleTypeAnnotation;
+
+  /**
+   * The last runtime invisible type annotation of this field. The previous ones can be accessed
+   * with the {@link AnnotationWriter#previousAnnotation} field. May be {@literal null}.
+   */
+  private AnnotationWriter lastRuntimeInvisibleTypeAnnotation;
+
+  /**
    * The first non standard attribute of this field. The next ones can be accessed with the {@link
-   * Attribute#nextAttribute} field. May be <tt>null</tt>.
+   * Attribute#nextAttribute} field. May be {@literal null}.
    *
    * <p><b>WARNING</b>: this list stores the attributes in the <i>reverse</i> order of their visit.
    * firstAttribute is actually the last attribute visited in {@link #visitAttribute}. The {@link
@@ -90,8 +114,8 @@ final class FieldWriter extends FieldVisitor {
    * @param access the field's access flags (see {@link Opcodes}).
    * @param name the field's name.
    * @param descriptor the field's descriptor (see {@link Type}).
-   * @param signature the field's signature. May be <tt>null</tt>.
-   * @param constantValue the field's constant value. May be <tt>null</tt>.
+   * @param signature the field's signature. May be {@literal null}.
+   * @param constantValue the field's constant value. May be {@literal null}.
    */
   FieldWriter(
       final SymbolTable symbolTable,
@@ -100,7 +124,7 @@ final class FieldWriter extends FieldVisitor {
       final String descriptor,
       final String signature,
       final Object constantValue) {
-    super(Opcodes.ASM6);
+    super(/* latest api = */ Opcodes.ASM9);
     this.symbolTable = symbolTable;
     this.accessFlags = access;
     this.nameIndex = symbolTable.addConstantUtf8(name);
@@ -116,6 +140,31 @@ final class FieldWriter extends FieldVisitor {
   // -----------------------------------------------------------------------------------------------
   // Implementation of the FieldVisitor abstract class
   // -----------------------------------------------------------------------------------------------
+
+  @Override
+  public AnnotationVisitor visitAnnotation(final String descriptor, final boolean visible) {
+    if (visible) {
+      return lastRuntimeVisibleAnnotation =
+          AnnotationWriter.create(symbolTable, descriptor, lastRuntimeVisibleAnnotation);
+    } else {
+      return lastRuntimeInvisibleAnnotation =
+          AnnotationWriter.create(symbolTable, descriptor, lastRuntimeInvisibleAnnotation);
+    }
+  }
+
+  @Override
+  public AnnotationVisitor visitTypeAnnotation(
+      final int typeRef, final TypePath typePath, final String descriptor, final boolean visible) {
+    if (visible) {
+      return lastRuntimeVisibleTypeAnnotation =
+          AnnotationWriter.create(
+              symbolTable, typeRef, typePath, descriptor, lastRuntimeVisibleTypeAnnotation);
+    } else {
+      return lastRuntimeInvisibleTypeAnnotation =
+          AnnotationWriter.create(
+              symbolTable, typeRef, typePath, descriptor, lastRuntimeInvisibleTypeAnnotation);
+    }
+  }
 
   @Override
   public void visitAttribute(final Attribute attribute) {
@@ -148,24 +197,13 @@ final class FieldWriter extends FieldVisitor {
       symbolTable.addConstantUtf8(Constants.CONSTANT_VALUE);
       size += 8;
     }
-    // Before Java 1.5, synthetic fields are represented with a Synthetic attribute.
-    if ((accessFlags & Opcodes.ACC_SYNTHETIC) != 0
-        && symbolTable.getMajorVersion() < Opcodes.V1_5) {
-      // Synthetic attributes always use 6 bytes.
-      symbolTable.addConstantUtf8(Constants.SYNTHETIC);
-      size += 6;
-    }
-    if (signatureIndex != 0) {
-      // Signature attributes always use 8 bytes.
-      symbolTable.addConstantUtf8(Constants.SIGNATURE);
-      size += 8;
-    }
-    // ACC_DEPRECATED is ASM specific, the ClassFile format uses a Deprecated attribute instead.
-    if ((accessFlags & Opcodes.ACC_DEPRECATED) != 0) {
-      // Deprecated attributes always use 6 bytes.
-      symbolTable.addConstantUtf8(Constants.DEPRECATED);
-      size += 6;
-    }
+    size += Attribute.computeAttributesSize(symbolTable, accessFlags, signatureIndex);
+    size +=
+        AnnotationWriter.computeAnnotationsSize(
+            lastRuntimeVisibleAnnotation,
+            lastRuntimeInvisibleAnnotation,
+            lastRuntimeVisibleTypeAnnotation,
+            lastRuntimeInvisibleTypeAnnotation);
     if (firstAttribute != null) {
       size += firstAttribute.computeAttributesSize(symbolTable);
     }
@@ -198,6 +236,18 @@ final class FieldWriter extends FieldVisitor {
     if ((accessFlags & Opcodes.ACC_DEPRECATED) != 0) {
       ++attributesCount;
     }
+    if (lastRuntimeVisibleAnnotation != null) {
+      ++attributesCount;
+    }
+    if (lastRuntimeInvisibleAnnotation != null) {
+      ++attributesCount;
+    }
+    if (lastRuntimeVisibleTypeAnnotation != null) {
+      ++attributesCount;
+    }
+    if (lastRuntimeInvisibleTypeAnnotation != null) {
+      ++attributesCount;
+    }
     if (firstAttribute != null) {
       attributesCount += firstAttribute.getAttributeCount();
     }
@@ -210,18 +260,14 @@ final class FieldWriter extends FieldVisitor {
           .putInt(2)
           .putShort(constantValueIndex);
     }
-    if ((accessFlags & Opcodes.ACC_SYNTHETIC) != 0 && useSyntheticAttribute) {
-      output.putShort(symbolTable.addConstantUtf8(Constants.SYNTHETIC)).putInt(0);
-    }
-    if (signatureIndex != 0) {
-      output
-          .putShort(symbolTable.addConstantUtf8(Constants.SIGNATURE))
-          .putInt(2)
-          .putShort(signatureIndex);
-    }
-    if ((accessFlags & Opcodes.ACC_DEPRECATED) != 0) {
-      output.putShort(symbolTable.addConstantUtf8(Constants.DEPRECATED)).putInt(0);
-    }
+    Attribute.putAttributes(symbolTable, accessFlags, signatureIndex, output);
+    AnnotationWriter.putAnnotations(
+        symbolTable,
+        lastRuntimeVisibleAnnotation,
+        lastRuntimeInvisibleAnnotation,
+        lastRuntimeVisibleTypeAnnotation,
+        lastRuntimeInvisibleTypeAnnotation,
+        output);
     if (firstAttribute != null) {
       firstAttribute.putAttributes(symbolTable, output);
     }
