@@ -238,6 +238,14 @@ public final class Reflect {
      */
     public static Object getObjectFieldValue( Object object, String fieldName )
             throws UtilEvalError, ReflectError {
+        return getObjectFieldValue(object, fieldName, null);
+    }
+
+    /** Same as {@link #getObjectFieldValue(Object, String)}, optionally
+     * reporting the field's or property getter's declared type. */
+    static Object getObjectFieldValue(
+            Object object, String fieldName, CallArguments.Result result )
+            throws UtilEvalError, ReflectError {
         if ( object instanceof This ) {
             return ((This) object).namespace.getVariable( fieldName );
         } else if( object == Primitive.NULL ) {
@@ -245,12 +253,14 @@ public final class Reflect {
                 "Attempt to access field '" +fieldName+"' on null value" ) );
         } else {
             try {
-                return getFieldValue(
+                Object value = getFieldValue(
                     object.getClass(), object, fieldName, false/*onlystatic*/);
+                if (result != null) result.field(object, fieldName);
+                return value;
             } catch ( ReflectError e ) {
                 // no field, try property access
                 if ( hasObjectPropertyGetter( object.getClass(), fieldName ) )
-                    return getObjectProperty( object, fieldName );
+                    return getObjectProperty( object, fieldName, result );
                 else
                     throw e;
             }
@@ -817,16 +827,24 @@ public final class Reflect {
 
     @SuppressWarnings("rawtypes")
     public static Object getObjectProperty(Object obj, String propName) {
+        return getObjectProperty(obj, propName, null);
+    }
+    @SuppressWarnings("rawtypes")
+    static Object getObjectProperty(Object obj, String propName, CallArguments.Result result) {
         if (Types.isPropertyTypeEntry(obj)) switch (propName) {
             case "key":
                 return ((Entry) obj).getKey();
             case "val": case "value":
                 return ((Entry) obj).getValue();
         }
-        return getObjectProperty(obj, (Object) propName);
+        return getObjectProperty(obj, (Object) propName, result);
     }
     @SuppressWarnings("rawtypes")
     public static Object getObjectProperty(Object obj, Object propName) {
+        return getObjectProperty(obj, propName, null);
+    }
+    @SuppressWarnings("rawtypes")
+    static Object getObjectProperty(Object obj, Object propName, CallArguments.Result result) {
         if ( Types.isPropertyTypeMap(obj) ) {
             Map map = (Map) obj;
             if (map.containsKey(propName))
@@ -857,6 +875,7 @@ public final class Reflect {
             Interpreter.debug("property getter not found");
             return Primitive.VOID;
         }
+        if (result != null) result.type = getter.getReturnType();
         try {
             return getter.invoke(obj);
         } catch(InvocationTargetException e) {

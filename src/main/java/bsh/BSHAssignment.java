@@ -36,6 +36,13 @@ class BSHAssignment extends SimpleNode implements ParserConstants {
 
     public Object eval(CallStack callstack, Interpreter interpreter)
             throws EvalError {
+        return eval(callstack, interpreter, null);
+    }
+
+    /** Evaluate, optionally reporting the assignment expression's type (the
+     * assignee's declared type, per JLS 15.26) when the result is null. */
+    Object eval(CallStack callstack, Interpreter interpreter, CallArguments.Result result)
+            throws EvalError {
         if ( null == operator ) try {
             return jjtGetChild(0).eval(callstack, interpreter);
         } catch (SafeNavigate aborted) {
@@ -47,6 +54,7 @@ class BSHAssignment extends SimpleNode implements ParserConstants {
 
         boolean strictJava = interpreter.getStrictJava();
         LHS lhs = lhsNode.toLHS( callstack, interpreter);
+        if (result != null) result.type = lhs.getType();
 
         // For operator-assign operations save the lhs value before evaluating
         // the rhs.  This is correct Java behavior for postfix operations

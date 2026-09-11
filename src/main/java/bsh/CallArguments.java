@@ -66,12 +66,18 @@ final class CallArguments {
     /** Evaluate once, preserving declared types only when the resulting value is null. */
     static Object eval(Node node, CallStack stack, Interpreter interpreter, Result result)
             throws EvalError {
-        if (node instanceof BSHAssignment && ((BSHAssignment) node).operator == null) try {
-            return eval(node.jjtGetChild(0), stack, interpreter, result);
-        } catch (SafeNavigate aborted) {
-            result.type = null;
-            return Primitive.NULL;
+        if (node instanceof BSHAssignment) {
+            BSHAssignment assignment = (BSHAssignment) node;
+            if (assignment.operator == null) try {
+                return eval(node.jjtGetChild(0), stack, interpreter, result);
+            } catch (SafeNavigate aborted) {
+                result.type = null;
+                return Primitive.NULL;
+            }
+            return assignment.eval(stack, interpreter, result);
         }
+        if (node instanceof BSHTernaryExpression)
+            return ((BSHTernaryExpression) node).eval(stack, interpreter, result);
         if (node instanceof BSHPrimaryExpression)
             return ((BSHPrimaryExpression) node).eval(stack, interpreter, result);
         if (node instanceof BSHMethodInvocation)

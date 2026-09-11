@@ -189,6 +189,29 @@ public class NullVarargsTest {
         assertEquals("null-array", Primitive.unwrap(method.invoke(null, Primitive.NULL)));
     }
 
+    @Test public void assignment_expression_declared_null_types() throws Exception {
+        compare("null-array", "Target.objects(array = null)");
+        compare("[null]", "Target.objects(object = null)");
+    }
+
+    @Test public void property_getter_declared_null_types() throws Exception {
+        String bean = "class Bean { Object getFoo() { return null; } Object[] getBars() { return null; } } Bean bean = new Bean(); ";
+        compare("[null]", bean + "Target.objects(bean.foo)");
+        compare("null-array", bean + "Target.objects(bean.bars)");
+        compare("[null]", bean + "Target.objects(bean{\"foo\"})");
+        compare("null-array", bean + "Target.objects(bean{\"bars\"})");
+    }
+
+    @Test public void ternary_expression_declared_null_types() throws Exception {
+        compare("[null]", "Target.objects(true ? object : object)");
+        compare("null-array", "Target.objects(true ? array : array)");
+    }
+
+    @Test public void anonymous_class_construction_declared_null_types() throws Exception {
+        compare(new Target((Object) null).result(), "new Target(object) {}.result()");
+        compare(new Target((Object[]) null).result(), "new Target(array) {}.result()");
+    }
+
     @Test public void null_array_is_more_specific_than_object() {
         Class<?>[] nullType = {null};
         assertEquals(1, Reflect.findMostSpecificSignature(nullType,

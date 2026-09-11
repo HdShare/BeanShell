@@ -211,6 +211,10 @@ class LHS implements ParserConstants, Serializable {
             return field.getReturnType();
         if ( null != getVariable() )
             return var.getType();
+        // Loosely typed constructs have no declared type; getValueImpl()
+        // does not support them.
+        if ( type == MAP_ENTRY || type == METHOD_EVAL )
+            return null;
         try {
             return Types.getType(getValueImpl());
         } catch ( UtilEvalError e ) {

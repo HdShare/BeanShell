@@ -128,7 +128,7 @@ class BSHPrimarySuffix extends SimpleNode
                     return doName(obj, toLHS, callstack, interpreter, result);
 
                 case PROPERTY:
-                    return doProperty( toLHS, obj, callstack, interpreter );
+                    return doProperty( toLHS, obj, callstack, interpreter, result );
 
                 case NEW:
                     return doNewInner(obj, toLHS, callstack, interpreter);
@@ -193,12 +193,10 @@ class BSHPrimarySuffix extends SimpleNode
                     return new LHS(obj, field);
                 }
                 else try {
-                    Object value = Reflect.getObjectFieldValue(obj, field);
-                    if (result != null) result.field(obj, field);
-                    return value;
+                    return Reflect.getObjectFieldValue(obj, field, result);
                 } catch (Throwable t) {
                     try {
-                        return Reflect.getObjectProperty( obj, field );
+                        return Reflect.getObjectProperty( obj, field, result );
                     } catch (Throwable tt) {
                         return Primitive.VOID;
                     }
@@ -361,7 +359,7 @@ class BSHPrimarySuffix extends SimpleNode
         Must handle toLHS case.
     */
     private Object doProperty( boolean toLHS,
-        Object obj, CallStack callstack, Interpreter interpreter )
+        Object obj, CallStack callstack, Interpreter interpreter, CallArguments.Result result )
         throws EvalError
     {
         if(obj == Primitive.VOID)
@@ -384,7 +382,7 @@ class BSHPrimarySuffix extends SimpleNode
             return new LHS(obj, (String)value);
 
         try {
-            Object val = Reflect.getObjectProperty( obj, (String)value );
+            Object val = Reflect.getObjectProperty( obj, (String)value, result );
             return null == val ?  Primitive.NULL : Primitive.unwrap(val);
         }
         catch (ReflectError e)

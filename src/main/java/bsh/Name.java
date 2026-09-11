@@ -427,7 +427,7 @@ class Name implements java.io.Serializable
 
             // static bean property
             if ( obj == null )
-                obj = Reflect.getObjectProperty(clas, field);
+                obj = Reflect.getObjectProperty(clas, field, result);
 
             return completeRound( field, suffix(evalName), obj );
         }
@@ -459,12 +459,11 @@ class Name implements java.io.Serializable
         // Check for field on object
         // Note: could eliminate throwing the exception somehow
         try {
-            Object obj = Reflect.getObjectFieldValue(evalBaseObject, field);
-            if (result != null) result.field(evalBaseObject, field);
+            Object obj = Reflect.getObjectFieldValue(evalBaseObject, field, result);
             return completeRound( field, suffix(evalName), obj );
         } catch(ReflectError e) { /* not a field */ }
 
-        Object obj = Reflect.getObjectProperty(evalBaseObject, field);
+        Object obj = Reflect.getObjectProperty(evalBaseObject, field, result);
         return completeRound( field, suffix(evalName), obj );
 
     }
