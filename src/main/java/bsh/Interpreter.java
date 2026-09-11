@@ -340,9 +340,9 @@ public class Interpreter
         this.console = console;
         if ( null == this.parser || get_jjtree().nodeArity() != 0
                 || (null != parent && parent.interactive) )
-            this.parser = new Parser(getIn());
+            this.parser = new Parser(StacklessEofReader.wrap(getIn()));
         else
-            this.parser.ReInit(getIn());
+            this.parser.ReInit(StacklessEofReader.wrap(getIn()));
     }
 
     /** Overloaded to accept a read only console.
@@ -534,7 +534,7 @@ public class Interpreter
                     e.printStackTrace();
                 if ( !interactive )
                     EOF = true;
-                parser.reInitInput(getIn());
+                parser.reInitInput(StacklessEofReader.wrap(getIn()));
             } catch (InterpreterError e) {
                 error("Internal Error: " + e.getMessage());
                 if ( !interactive )
@@ -562,7 +562,7 @@ public class Interpreter
                     fail.  Must re-init the char stream reader
                     (ASCII_UCodeESC_CharStream.java)
                 */
-                parser.reInitTokenInput(getIn());
+                parser.reInitTokenInput(StacklessEofReader.wrap(getIn()));
 
                 if( !interactive )
                     EOF = true;
