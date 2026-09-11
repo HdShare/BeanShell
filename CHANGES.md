@@ -14,6 +14,8 @@ Fixed numeric reference casts such as `(Number) Double.valueOf(1)`, which previo
 
 Fixed a parser input-buffer defect where long string literals, identifiers, or comments could corrupt the parser's buffer position when a token crossed a buffer growth or wraparound boundary, causing `ArrayIndexOutOfBoundsException`, parse errors, or incorrect token contents (#734, #743). The fix comes from upgrading the parser generator (`ph-javacc-maven-plugin` 5.0.2, ParserGeneratorCC 2.0.3), so building BeanShell from source now requires JDK 17 or newer; the resulting JAR still targets Java 8.
 
+Float arithmetic now follows Java's numeric promotion (#767). `+`, `-`, `*`, `/` and `%` on `float` operands, including `float` mixed with `byte`, `short`, `char`, `int` or `long`, are computed in `float` and return `Float` instead of being widened to `double`. This deliberately changes the behavior documented in #71: a float result that overflows is now `Infinity` rather than a larger `Double` (for example `Float.MAX_VALUE * 2`), and compound assignments such as `long += float` round through `float` as compiled Java does. Arithmetic involving `double`, `BigInteger` or `BigDecimal` is unchanged.
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions
