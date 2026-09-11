@@ -611,6 +611,12 @@ class Types {
                 return checkOnly ? VALID_CAST : Primitive.unwrap(fromValue);
             }
 
+            // Preserve directly assignable numeric references without conversion.
+            // Type-only checks have a null fromValue and use the reference path below.
+            if (fromType != null && !fromType.isPrimitive() &&
+                toType.isAssignableFrom( fromType ))
+                return fromValue;
+
             // Primitive to arbitrary object type.
             // Allow Primitive.castToType() to handle it as well as cases of
             // Primitive.NULL and Primitive.VOID
