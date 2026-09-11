@@ -223,7 +223,7 @@ public abstract class Invocable implements Member {
     }
 
     /** The fixed-arity form accepts an array or a null assignable to that array. */
-    private boolean isFixedArity(CallArguments arguments) {
+    boolean isFixedArity(CallArguments arguments) {
         if (!isVarArgs()) return false;
         int enclosing = this instanceof ConstructorInvocable && isInnerClass() && !isStatic() ? 1 : 0;
         if (arguments.types.length == 0

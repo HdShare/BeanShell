@@ -112,7 +112,7 @@ class BSHAllocationExpression extends SimpleNode
                     type, args, body, callstack, interpreter );
             else
                 return constructWithClassBody(
-                    type, args, body, callstack, interpreter );
+                    type, arguments, body, callstack, interpreter );
         } else
             return constructObject(type, arguments, callstack, interpreter);
     }
@@ -188,19 +188,19 @@ class BSHAllocationExpression extends SimpleNode
     }
 
     private Object constructWithClassBody(
-        Class<?> type, Object[] args, BSHBlock block,
+        Class<?> type, CallArguments arguments, BSHBlock block,
         CallStack callstack, Interpreter interpreter )
         throws EvalError
     {
         String anon = "anon" + (++innerClassCount);
         String name = callstack.top().getName().replace('/', '_') + "$" + anon;
-        This.CONTEXT_ARGS.get().put(anon, args);
+        This.CONTEXT_ARGS.get().put(anon, superConstructorArgs(type, arguments));
         Modifiers modifiers = new Modifiers(Modifiers.CLASS);
         Class<?> clas = ClassGenerator.getClassGenerator().generateClass(
                 name, modifiers, null/*interfaces*/, type/*superClass*/,
                 block, ClassGenerator.Type.CLASS, callstack, interpreter );
         try {
-            return Reflect.constructObject( clas, args );
+            return Reflect.constructWithArguments( clas, null, arguments );
         } catch ( Exception e ) {
             Throwable cause = e;
             if ( e instanceof InvocationTargetException )
@@ -208,6 +208,26 @@ class BSHAllocationExpression extends SimpleNode
             throw new EvalException("Error constructing inner class instance: "
                 + e, this, callstack, cause);
         }
+    }
+
+    /** The generated anonymous-class constructor forwards to super() using
+     * static per-slot bytecode with no vararg awareness of its own, so the
+     * vararg tail must already be wrapped (or not) correctly here, using the
+     * same declared-type reasoning as an ordinary varargs invocation. */
+    private static Object[] superConstructorArgs(Class<?> type, CallArguments arguments) {
+        Invocable con = BshClassManager.memberCache.get(type)
+                .findMethod(type.getName(), arguments.types);
+        if ( con == null || !con.isVarArgs() || (con.isInnerClass() && !con.isStatic())
+                || con.isFixedArity(arguments) )
+            return arguments.values;
+        int lastIndex = con.getParameterCount() - 1;
+        if ( lastIndex < 0 || lastIndex >= arguments.values.length )
+            return arguments.values;
+        Object[] wrapped = new Object[con.getParameterCount()];
+        System.arraycopy(arguments.values, 0, wrapped, 0, lastIndex);
+        wrapped[lastIndex] = java.util.Arrays.copyOfRange(
+                arguments.values, lastIndex, arguments.values.length);
+        return wrapped;
     }
 
     private Object constructWithInterfaceBody(
