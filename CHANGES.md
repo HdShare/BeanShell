@@ -18,6 +18,12 @@ Float arithmetic now follows Java's numeric promotion (#767). `+`, `-`, `*`, `/`
 
 Fixed intermittent wrong-variable lookups in nested blocks and loops (#659). An internal cache treated any two keys with the same hash code as the same entry, so a block could occasionally be given another block's namespace; the class-member cache had the same flaw. The cache now compares keys exactly.
 
+When a class declares a real method whose name matches one of its property accessors, BeanShell could call the accessor instead: for example, calling `level(...)` could run `setLevel(...)`, and `up()` could run `isUp()` (#780). Real methods now take precedence, and a class that only defines `isUp()` can still be called as `up()`.
+
+Updated the bundled ASM bytecode library to 9.10.1, still relocated under `bsh.org.objectweb.asm`. This fixes scripted classes with many overloaded constructors, which could fail with `Can't find default constructor` (#788).
+
+Passing a bare `null` to a Java varargs method or constructor now passes a null array, as compiled Java does, instead of wrapping it in a one-element array (#778). More generally, a bare `null` argument now matches array-typed overloads: `String.valueOf(null)` and `Arrays.asList(null)` now throw `NullPointerException`, as in Java, where they previously returned `"null"` and `[null]`. `(Object) null` still passes a single null element.
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions
