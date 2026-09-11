@@ -81,6 +81,31 @@ public class ClassGeneratorTest {
         assertEquals(1, ( (IntSupplier) oa[1] ).getAsInt());
     }
 
+    @Test
+    public void large_constructor_dispatch_preserves_constructors() throws Exception {
+        StringBuilder script = new StringBuilder(
+                "class LargeConstructorDispatch {"
+                + "String result;"
+                + "LargeConstructorDispatch() { this(\"chained\"); }");
+        // Each overload adds a branch to every constructor's dispatch switch.
+        // These signatures make the early jumps exceed a signed 16-bit offset.
+        for (int count = 1; count <= 95; count++) {
+            script.append("LargeConstructorDispatch(");
+            for (int parameter = 0; parameter < count; parameter++) {
+                if (parameter > 0) {
+                    script.append(", ");
+                }
+                script.append("String p").append(parameter);
+            }
+            script.append(") { result = p0; }");
+        }
+        script.append("}");
+
+        assertEquals("chained:direct", eval(script.toString(),
+                "return new LargeConstructorDispatch().result + \":\""
+                + " + new LargeConstructorDispatch(\"direct\").result;"));
+    }
+
 
     @Test
     public void call_protected_constructor_from_script() throws Exception {
