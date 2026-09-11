@@ -42,6 +42,12 @@ Scripts evaluated from deep call stacks no longer slow down in proportion to the
 
 Fixed a parse error when a method-call argument, wrapped in extra parentheses, contained an anonymous class declaring a method with a class return type, for example `print(((String) new Supplier() { public Object get() { return "2"; }}.get()));` (#423).
 
+Extended the null-varargs fix (#778) to three more places a null argument's declared type was lost, causing the same wrong-array-vs-wrong-element dispatch: an assignment expression used directly as a call argument (`Target.objects(object = null)`), a bean property getter accessed with dot or brace syntax (`bean.foo`, `bean{"foo"}`), and a ternary expression (`cond ? object : object`). Also fixed anonymous-class construction, which lost the same type information because the generated constructor's `super()` call is static per-argument-slot bytecode with no vararg-wrapping logic of its own: `new Target(object) {}` now matches `new Target(object)`.
+
+Restored weak and soft key behavior in the class-member and block-namespace caches (#659). Their replacement kept cache keys in a plain `HashMap`, so a key (and, transitively, the `NameSpace` or `Class` it held onto) stayed reachable until its value happened to be garbage collected and the cache's periodic cleanup ran, regardless of whether anything outside the cache still referenced it.
+
+Packaged the ASM library's BSD-3-Clause license notice into the binary JAR at `META-INF/licenses/ASM-LICENSE.txt` (#788); it previously shipped with the vendored, relocated ASM classes but not their license.
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions
