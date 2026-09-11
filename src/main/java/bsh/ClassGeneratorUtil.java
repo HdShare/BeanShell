@@ -436,14 +436,17 @@ public class ClassGeneratorUtil implements Opcodes {
         // Push the name of the method as a constant
         cv.visitLdcInsn(methodName);
 
+        // Push the declared parameter types; argument values can't identify the overload, e.g. a typed null
+        generateParameterTypesCode(paramTypes, cv);
+
         // Generate code to push arguments as an object array
         generateParameterReifierCode(paramTypes, isStatic, cv);
 
         // Push the boolean constant 'true' (for declaredOnly)
         cv.visitInsn(ICONST_1);
 
-        // Invoke the method This.invokeMethod( name, Class [] sig, boolean )
-        cv.visitMethodInsn(INVOKEVIRTUAL, "bsh/This", "invokeMethod", "(Ljava/lang/String;[Ljava/lang/Object;Z)Ljava/lang/Object;", false);
+        // Invoke the method This.invokeMethod( name, Class [] paramTypes, Object [] args, boolean )
+        cv.visitMethodInsn(INVOKEVIRTUAL, "bsh/This", "invokeMethod", "(Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/Object;Z)Ljava/lang/Object;", false);
 
         // Generate code to return the value
         generateReturnCode(returnType, cv);
@@ -878,6 +881,34 @@ public class ClassGeneratorUtil implements Opcodes {
                 cv.visitLabel(notnull);
             }
             localVarIndex += param.equals("D") || param.equals("J") ? 2 : 1;
+        }
+    }
+
+    /** Generates code that pushes the given parameter types as a Class array. */
+    private void generateParameterTypesCode(String[] paramTypes, final MethodVisitor cv) {
+        cv.visitIntInsn(SIPUSH, paramTypes.length);
+        cv.visitTypeInsn(ANEWARRAY, "java/lang/Class");
+        for (int i = 0; i < paramTypes.length; ++i) {
+            cv.visitInsn(DUP);
+            cv.visitIntInsn(SIPUSH, i);
+            if (isPrimitive(paramTypes[i]))
+                cv.visitFieldInsn(GETSTATIC, primitiveWrapperName(paramTypes[i]), "TYPE", "Ljava/lang/Class;");
+            else
+                cv.visitLdcInsn(Type.getType(paramTypes[i]));
+            cv.visitInsn(AASTORE);
+        }
+    }
+
+    private static String primitiveWrapperName(String typeDescriptor) {
+        switch (typeDescriptor.charAt(0)) {
+            case 'Z': return "java/lang/Boolean";
+            case 'C': return "java/lang/Character";
+            case 'B': return "java/lang/Byte";
+            case 'S': return "java/lang/Short";
+            case 'F': return "java/lang/Float";
+            case 'J': return "java/lang/Long";
+            case 'D': return "java/lang/Double";
+            default: return "java/lang/Integer";
         }
     }
 

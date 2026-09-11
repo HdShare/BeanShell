@@ -308,13 +308,27 @@ public final class This implements java.io.Serializable, Runnable
             boolean declaredOnly  )
             throws EvalError
     {
+        return invokeMethod(methodName, null, args, declaredOnly);
+    }
+
+    /**
+        Class generated method stub entry that selects the scripted method
+        by the stub's own parameter types rather than the argument values.
+     */
+    public Object invokeMethod(
+            String methodName, Class<?>[] paramTypes, Object [] args,
+            boolean declaredOnly  )
+            throws EvalError
+    {
         CallStack callstack = new CallStack(namespace);
         Node node = namespace.getNode();
         namespace.setNode(null);
+        CallArguments arguments = null == paramTypes
+                ? new CallArguments(args) : new CallArguments(args, paramTypes);
         try {
             Object ret = invokeMethod(
-                    methodName, args, declaringInterpreter,
-                    callstack, node, declaredOnly);
+                    methodName, arguments, declaringInterpreter,
+                    callstack, node, declaredOnly, null);
             // manually unwrap primitives excluding void
             if (ret instanceof Primitive && ret != Primitive.VOID)
                 return ((Primitive)ret).getValue();

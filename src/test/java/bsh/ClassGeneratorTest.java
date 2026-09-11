@@ -412,4 +412,50 @@ public class ClassGeneratorTest {
         eval("interface Test { static int x = 1; }");
         eval("interface Test { int x = 1; }");
     }
+
+    @Test
+    public void scripted_overload_uses_declared_type_of_null_argument() throws Exception {
+        assertEquals("Object", eval(
+            "class NullOverloadA {",
+                "public String test(Object o) { return \"Object\"; }",
+                "public String test(Integer i) { return \"Integer\"; }",
+            "}",
+            "Object o = null;",
+            "return new NullOverloadA().test(o);"));
+    }
+
+    @Test
+    public void java_call_to_generated_overload_runs_that_overload() throws Exception {
+        Object instance = eval(
+            "class NullOverloadB {",
+                "public String test(Object o) { return \"Object\"; }",
+                "public String test(Integer i) { return \"Integer\"; }",
+            "}",
+            "return new NullOverloadB();");
+        assertEquals("Object", instance.getClass()
+            .getMethod("test", Object.class).invoke(instance, new Object[] {null}));
+    }
+
+    @Test
+    public void enum_overload_uses_declared_type_of_null_argument() throws Exception {
+        assertEquals("Object", eval(
+            "enum NullOverloadE { A;",
+                "public String test(Object o) { return \"Object\"; }",
+                "public String test(Integer i) { return \"Integer\"; }",
+            "}",
+            "Object o = null;",
+            "e = NullOverloadE.A;",
+            "return e.test(o);"));
+    }
+
+    @Test
+    public void scripted_overload_dispatches_non_null_by_runtime_type() throws Exception {
+        assertEquals("Integer", eval(
+            "class NullOverloadC {",
+                "public String test(Object o) { return \"Object\"; }",
+                "public String test(Integer i) { return \"Integer\"; }",
+            "}",
+            "Object o = Integer.valueOf(5);",
+            "return new NullOverloadC().test(o);"));
+    }
 }
