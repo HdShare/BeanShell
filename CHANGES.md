@@ -53,6 +53,8 @@ Fixed a `ThreadLocal` state leak in `Interpreter.DEBUG` (#785): debug mode enabl
 
 Added `Interpreter.setOutputFile(String)` to redirect a specific interpreter's own output and error streams to a file without touching `System.out`/`System.err` (#516). The existing static `Interpreter.redirectOutputToFile(String)`, despite its name, always redirected the JVM-wide system streams rather than any particular interpreter; it is now deprecated in favor of the new instance method.
 
+Fixed an inner class that extends its own enclosing class resolving to the wrong (or, on a first definition, no) superclass (#698): `class A { class B extends A {} }` generated `B` before `A` itself was defined, so `B`'s superclass baked in whatever `A` previously existed, if any. That specific inner class is now generated only after its enclosing class is fully defined; other inner classes are unaffected and keep generating first, as before.
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions

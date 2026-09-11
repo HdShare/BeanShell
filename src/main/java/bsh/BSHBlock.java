@@ -129,11 +129,16 @@ class BSHBlock extends SimpleNode {
                 for (int i = startChild; i < numChildren; i++) {
                     Node node = jjtGetChild(i);
 
-                    if ( nodeFilter != null && !nodeFilter.isVisible( node ) )
-                        continue;
-
                     if ( node instanceof BSHClassDeclaration ) {
+                        // record structurally, independent of this call's
+                        // filter, so a later call with a different filter
+                        // (e.g. a second, differently-filtered pass over
+                        // the same block) still re-scans this block
                         hasClassDeclaration = true;
+
+                        if ( nodeFilter != null && !nodeFilter.isVisible( node ) )
+                            continue;
+
                         node.eval( callstack, interpreter );
                     }
                 }

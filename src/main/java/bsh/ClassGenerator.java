@@ -82,15 +82,18 @@ public final class ClassGenerator {
 
         callstack.push(classStaticNameSpace);
 
-        // Evaluate any inner class class definitions in the block
-        // effectively recursively call this method for contained classes first
-        block.evalBlock(callstack, interpreter, true/*override*/, ClassNodeFilter.CLASSCLASSES);
+        // Evaluate inner class definitions in the block first, effectively
+        // recursively calling this method for contained classes, EXCEPT for
+        // an inner class that extends this class itself (#698): that one
+        // must wait until this class is fully defined below, or it bakes in
+        // whatever "name" previously resolved to (stale on a redefinition,
+        // unresolvable on a first definition).
+        block.evalBlock(callstack, interpreter, true/*override*/,
+            new SelfExtendingClassFilter(name, false));
 
         // Generate the type for our class
         Variable[] variables = getDeclaredVariables(block, callstack, interpreter, packageName);
         DelayedEvalBshMethod[] methods = getDeclaredMethods(block, callstack, interpreter, packageName, superClass);
-
-        callstack.pop();
 
         // initialize static this singleton in namespace
         classStaticNameSpace.getThis(interpreter);
@@ -128,6 +131,13 @@ public final class ClassGenerator {
         // Give the static space its class static import
         // important to do this after all classes are defined
         classStaticNameSpace.setClassStatic(genClass);
+
+        // Now that this class is fully defined, evaluate any inner class
+        // that extends it (#698), so its superclass resolves to genClass.
+        block.evalBlock(callstack, interpreter, true/*override*/,
+            new SelfExtendingClassFilter(name, true));
+
+        callstack.pop();
 
         Interpreter.debug(classStaticNameSpace);
 
@@ -284,6 +294,38 @@ public final class ClassGenerator {
             if (node instanceof BSHMethodDeclaration)
                 return !((BSHMethodDeclaration) node).modifiers.hasModifier("static");
             return false;
+        }
+    }
+
+    /**
+     * A node filter that selects inner class declarations by whether they
+     * extend the immediately enclosing class (by simple name). Used to defer
+     * generating only that specific inner class until the enclosing class
+     * itself is fully defined (#698), without disturbing the generation
+     * order of unrelated inner classes.
+     */
+    static class SelfExtendingClassFilter implements BSHBlock.NodeFilter {
+        private final String enclosingName;
+        private final boolean selfExtending;
+
+        SelfExtendingClassFilter(String enclosingName, boolean selfExtending) {
+            this.enclosingName = enclosingName;
+            this.selfExtending = selfExtending;
+        }
+
+        @Override
+        public boolean isVisible(Node node) {
+            if (!(node instanceof BSHClassDeclaration)) return false;
+            return extendsEnclosing((BSHClassDeclaration) node) == selfExtending;
+        }
+
+        private boolean extendsEnclosing(BSHClassDeclaration decl) {
+            if (!decl.extend) return false;
+            Node superNode = decl.jjtGetChild(0);
+            if (!(superNode instanceof BSHAmbiguousName)) return false;
+            String text = ((BSHAmbiguousName) superNode).text;
+            String simpleName = text.substring(text.lastIndexOf('.') + 1);
+            return simpleName.equals(enclosingName);
         }
     }
 
