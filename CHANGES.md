@@ -1,5 +1,6 @@
 # BeanShell changelog
 
+
 ## 3.0.0 (in progress)
 
 Work has resumed on the long-dormant 3.0 development line (`master`; the JAR targets Java 8 and is tested on Java 8 through 25) after a multi-year gap. This entry will grow as the release is prepared; changes so far:

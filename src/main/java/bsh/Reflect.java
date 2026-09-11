@@ -1342,4 +1342,10 @@ public final class Reflect {
         .filter(Objects::nonNull)
         .toArray(len -> (T[]) Array.newInstance(enm, len));
     }
+
+    /** Find the type of an object. */
+    public static Class<?> getType(Object arg) {
+        return Types.getType(arg);
+    }
+
 }
