@@ -188,12 +188,17 @@ class Name implements java.io.Serializable
         CallStack callstack, Interpreter interpreter, boolean forceClass )
         throws UtilEvalError
     {
+        return toObject(callstack, interpreter, forceClass, null);
+    }
+
+    synchronized Object toObject(CallStack callstack, Interpreter interpreter,
+            boolean forceClass, CallArguments.Result result) throws UtilEvalError {
         reset();
 
         Object obj = null;
         while( evalName != null )
             obj = consumeNextObjectField(
-                callstack, interpreter, forceClass, false/*autoalloc*/  );
+                callstack, interpreter, forceClass, false/*autoalloc*/, result);
 
         if ( obj == null )
             throw new InterpreterError("null value in toObject()");
@@ -223,6 +228,13 @@ class Name implements java.io.Serializable
         boolean forceClass, boolean autoAllocateThis )
         throws UtilEvalError
     {
+        return consumeNextObjectField(callstack, interpreter, forceClass, autoAllocateThis, null);
+    }
+
+    private Object consumeNextObjectField(CallStack callstack, Interpreter interpreter,
+            boolean forceClass, boolean autoAllocateThis, CallArguments.Result result)
+            throws UtilEvalError {
+        if (result != null) result.type = null;
         /*
             Is it a simple variable name?
             Doing this first gives the correct Java precedence for vars
@@ -233,8 +245,10 @@ class Name implements java.io.Serializable
             Object obj = resolveThisFieldReference(
                 callstack, namespace, interpreter, evalName, false );
 
-            if ( obj != Primitive.VOID )
-                return completeRound( evalName, FINISHED, obj );
+            if ( obj != Primitive.VOID ) {
+                if (result != null) result.variable(namespace, evalName);
+                return completeRound(evalName, FINISHED, obj);
+            }
         }
 
         /*
@@ -259,6 +273,8 @@ class Name implements java.io.Serializable
 
             if ( obj != Primitive.VOID )
             {
+                if (result != null) result.variable(evalBaseObject instanceof This
+                        ? ((This) evalBaseObject).namespace : namespace, varName);
                 // Resolved the variable
                 return completeRound( varName, suffix(evalName), obj );
             }
@@ -389,6 +405,7 @@ class Name implements java.io.Serializable
                 Interpreter.debug("Name call to getStaticFieldValue, class: ",
                         clas, ", field:", field);
                 obj = Reflect.getStaticFieldValue(clas, field);
+                if (result != null) result.field(clas, field);
             } catch( ReflectError e ) {
                 Interpreter.debug("field reflect error: ", e);
             }
@@ -443,6 +460,7 @@ class Name implements java.io.Serializable
         // Note: could eliminate throwing the exception somehow
         try {
             Object obj = Reflect.getObjectFieldValue(evalBaseObject, field);
+            if (result != null) result.field(evalBaseObject, field);
             return completeRound( field, suffix(evalName), obj );
         } catch(ReflectError e) { /* not a field */ }
 
@@ -774,6 +792,13 @@ class Name implements java.io.Serializable
     )
         throws UtilEvalError, EvalError, ReflectError, InvocationTargetException
     {
+        return invokeMethod(interpreter, new CallArguments(args), callstack, callerInfo, null);
+    }
+
+    Object invokeMethod(Interpreter interpreter, CallArguments arguments,
+            CallStack callstack, Node callerInfo, CallArguments.Result result)
+            throws UtilEvalError, EvalError, ReflectError, InvocationTargetException {
+        Object[] args = arguments.values;
         String methodName = Name.suffix(value, 1);
         BshClassManager bcm = interpreter.getClassManager();
         NameSpace namespace = callstack.top();
@@ -786,12 +811,12 @@ class Name implements java.io.Serializable
             Interpreter.mainSecurityGuard.canInvokeStaticMethod(classOfStaticMethod, methodName, args);
 
             return Reflect.invokeStaticMethod(
-                bcm, classOfStaticMethod, methodName, args, callerInfo );
+                bcm, classOfStaticMethod, methodName, arguments, callerInfo, result);
         }
 
         if ( !Name.isCompound(value) )
             return invokeLocalMethod(
-                interpreter, args, callstack, callerInfo );
+                interpreter, arguments, callstack, callerInfo, result);
 
         // Note: if we want methods declared inside blocks to be accessible via
         // this.methodname() inside the block we could handle it here as a
@@ -815,8 +840,8 @@ class Name implements java.io.Serializable
                 // Validate if can invoke this super method
                 Interpreter.mainSecurityGuard.canInvokeSuperMethod(instance.getClass().getSuperclass(), instance, methodName, args);
 
-                return ClassGenerator.getClassGenerator()
-                    .invokeSuperclassMethod( bcm, instance, classStatic, methodName, args );
+                return ClassGenerator.invokeSuperclassMethodImpl(
+                        bcm, instance, classStatic, methodName, arguments, result);
             }
         }
 
@@ -841,8 +866,10 @@ class Name implements java.io.Serializable
                 NameSpace thisNamespace = Reflect.getThisNS(obj);
                 if ( null != thisNamespace ) {
                     BshMethod m = thisNamespace.getMethod(methodName, Types.getTypes(args), true);
-                    if ( null != m )
-                        return m.invoke(args, interpreter, callstack, callerInfo);
+                    if (null != m) {
+                        if (result != null) result.type = m.getReturnType();
+                        return m.invoke(arguments, interpreter, callstack, callerInfo, false);
+                    }
                 }
             }
 
@@ -851,7 +878,7 @@ class Name implements java.io.Serializable
 
             // found an object and it's not an undefined variable
             return Reflect.invokeObjectMethod(
-                obj, methodName, args, interpreter, callstack, callerInfo );
+                obj, methodName, arguments, interpreter, callstack, callerInfo, result);
         }
 
         // It's a class
@@ -871,7 +898,7 @@ class Name implements java.io.Serializable
         // Validate if can invoke this static method
         Interpreter.mainSecurityGuard.canInvokeStaticMethod(clas, methodName, args);
 
-        return Reflect.invokeStaticMethod( bcm, clas, methodName, args, callerInfo );
+        return Reflect.invokeStaticMethod(bcm, clas, methodName, arguments, callerInfo, result);
     }
 
     /**
@@ -882,16 +909,16 @@ class Name implements java.io.Serializable
     */
     private static final Pattern noOverride = Pattern.compile("eval|assert");
     private Object invokeLocalMethod(
-        Interpreter interpreter, Object[] args, CallStack callstack, Node callerInfo)
-        throws EvalError
-    {
+        Interpreter interpreter, CallArguments arguments, CallStack callstack,
+            Node callerInfo, CallArguments.Result result) throws EvalError {
+        Object[] args = arguments.values;
         Interpreter.debug( "invokeLocalMethod: ", value );
         if ( interpreter == null )
             throw new InterpreterError(
                 "invokeLocalMethod: interpreter = null");
 
         String methodName = value;
-        Class<?>[] argTypes = Types.getTypes( args );
+        Class<?>[] argTypes = arguments.types;
 
         try {
             Interpreter.mainSecurityGuard.canInvokeLocalMethod(methodName, args);
@@ -918,7 +945,8 @@ class Name implements java.io.Serializable
                     && !namespace.getParent().isClass
                     && !noOverride.matcher(meth.getName()).matches();
 
-            return meth.invoke( args, interpreter, callstack, callerInfo, overrideChild );
+            if (result != null) result.type = meth.getReturnType();
+            return meth.invoke(arguments, interpreter, callstack, callerInfo, overrideChild);
         }
 
         // Look for a BeanShell command

@@ -64,7 +64,12 @@ class BSHPrimaryExpression extends SimpleNode
     public Object eval( CallStack callstack, Interpreter interpreter)
         throws EvalError
     {
-        return eval( false, callstack, interpreter );
+        return eval(false, callstack, interpreter, null);
+    }
+
+    Object eval(CallStack callstack, Interpreter interpreter, CallArguments.Result result)
+            throws EvalError {
+        return eval(false, callstack, interpreter, result);
     }
 
     /**
@@ -92,6 +97,11 @@ class BSHPrimaryExpression extends SimpleNode
         CallStack callstack, Interpreter interpreter)
         throws EvalError
     {
+        return eval(toLHS, callstack, interpreter, null);
+    }
+
+    private Object eval(boolean toLHS, CallStack callstack, Interpreter interpreter,
+            CallArguments.Result result) throws EvalError {
         // We can cache array expressions evaluated during type inference
         if ( isArrayExpression && null != cached )
             return cached;
@@ -100,7 +110,7 @@ class BSHPrimaryExpression extends SimpleNode
 
         for( int i=1; i < jjtGetNumChildren(); i++ )
             obj = ((BSHPrimarySuffix) jjtGetChild(i)).doSuffix(
-                obj, toLHS, callstack, interpreter);
+                obj, toLHS, callstack, interpreter, result);
 
         /*
             If the result is a Node eval() it to an object or LHS
@@ -112,8 +122,9 @@ class BSHPrimaryExpression extends SimpleNode
                     obj = ((BSHAmbiguousName) obj).toLHS(
                         callstack, interpreter);
                 else
-                    obj = ((BSHAmbiguousName) obj).toObject(
-                        callstack, interpreter);
+                    obj = result == null
+                            ? ((BSHAmbiguousName) obj).toObject(callstack, interpreter)
+                            : CallArguments.eval((Node) obj, callstack, interpreter, result);
             else
                 // Some arbitrary kind of node
                 if ( toLHS )
@@ -121,7 +132,8 @@ class BSHPrimaryExpression extends SimpleNode
                     throw new EvalException("Can't assign to prefix.",
                         this, callstack );
                 else
-                    obj = ((Node) obj).eval(callstack, interpreter);
+                    obj = result == null ? ((Node) obj).eval(callstack, interpreter)
+                            : CallArguments.eval((Node) obj, callstack, interpreter, result);
 
         if ( isMapExpression ) {
             if ( obj == Primitive.VOID )

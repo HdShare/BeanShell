@@ -163,6 +163,12 @@ public abstract class Invocable implements Member {
     /** Basic parameter collection with pulling inherited cascade chaining. */
     public ParameterType collectParamaters(Object base, Object[] params)
             throws Throwable {
+        return collectParamaters(base, params, isFixedArity(new CallArguments(params)));
+    }
+
+    /** Collect using the invocation mode selected from the argument types. */
+    protected ParameterType collectParamaters(Object base, Object[] params, boolean fixedArity)
+            throws Throwable {
         if (getLastParameterIndex() > params.length)
             throw new InvocationTargetException(null, "Insufficient parameters passed for method: " + getName() + Arrays.asList(getParameterTypes()));
         parameters.clear();
@@ -189,10 +195,10 @@ public abstract class Invocable implements Member {
      * @param pars parameter arguments
      * @return invocation result
      * @throws Throwable combined exceptions */
-    private synchronized Object invokeTarget(Object base, Object[] pars)
+    private synchronized Object invokeTarget(Object base, Object[] pars, boolean fixedArity)
             throws Throwable {
         Reflect.logInvokeMethod("Invoking method (entry): ", this, pars);
-        ParameterType pt = collectParamaters(base, pars);
+        ParameterType pt = collectParamaters(base, pars, fixedArity);
         List<Object> params = pt.params;
         Reflect.logInvokeMethod("Invoking method (after): ", this, params);
         if (getParameterCount() > 0) {
@@ -213,13 +219,27 @@ public abstract class Invocable implements Member {
      * @throws InvocationTargetException wrapped target exceptions */
     public synchronized Object invoke(Object base, Object... pars)
             throws InvocationTargetException {
-        if (null == pars)
-            pars = Reflect.ZERO_ARGS;
+        return invokeWithArguments(base, new CallArguments(pars));
+    }
+
+    /** The fixed-arity form accepts an array or a null assignable to that array. */
+    private boolean isFixedArity(CallArguments arguments) {
+        if (!isVarArgs()) return false;
+        int enclosing = this instanceof ConstructorInvocable && isInnerClass() && !isStatic() ? 1 : 0;
+        if (arguments.types.length == 0
+                || getParameterCount() != arguments.types.length + enclosing)
+            return false;
+        Class<?> last = arguments.types[arguments.types.length - 1];
+        return last == null || getVarArgsType().isAssignableFrom(last);
+    }
+
+    /** Invoke using call-local types, leaving the cached method handle unchanged. */
+    synchronized Object invokeWithArguments(Object base, CallArguments arguments)
+            throws InvocationTargetException {
+        boolean fixedArity = isFixedArity(arguments);
         try {
-            return Primitive.wrap(
-                    invokeTarget(base, pars), getReturnType());
-        }
-        catch (Throwable ite) {
+            return Primitive.wrap(invokeTarget(base, arguments.values, fixedArity), getReturnType());
+        } catch (Throwable ite) {
             throw new InvocationTargetException(ite);
         }
     }
@@ -326,18 +346,16 @@ abstract class ExecutingInvocable extends Invocable {
      * as separate args.
      *  {@inheritDoc} */
     @Override
-    public ParameterType collectParamaters(Object base, Object[] params)
+    protected ParameterType collectParamaters(Object base, Object[] params, boolean fixedArity)
             throws Throwable {
-        super.collectParamaters(base, params);
+        super.collectParamaters(base, params, fixedArity);
         boolean isFixedArity = false;
         if (isVarArgs()) {
             if (getLastParameterIndex() < params.length) {
                 Object[] varargs;
-                if (getParameterCount() == params.length
-                    && params[getLastParameterIndex()].getClass().isArray()
-                    && getVarArgsComponentType().isAssignableFrom(params[getLastParameterIndex()].getClass().getComponentType())) {
+                if (fixedArity) {
                     isFixedArity = true;
-                    parameters.add(params[getLastParameterIndex()]);
+                    parameters.add(Primitive.unwrap(params[getLastParameterIndex()]));
                 } else {
                     varargs = Arrays.copyOfRange(
                             params, getLastParameterIndex(), params.length);
@@ -400,12 +418,12 @@ class ConstructorInvocable extends ExecutingInvocable {
      * Applies inner class mappings as required.
      * {@inheritDoc} */
     @Override
-    public ParameterType collectParamaters(Object base, Object[] params)
+    protected ParameterType collectParamaters(Object base, Object[] params, boolean fixedArity)
             throws Throwable {
         if (isInnerClass() && !isStatic())
             params = Stream.concat(
                     Stream.of(base), Stream.of(params)).toArray();
-        return super.collectParamaters(base, params);
+        return super.collectParamaters(base, params, fixedArity);
     }
 
 }
@@ -502,9 +520,9 @@ class MethodInvocable extends ExecutingInvocable {
     /** Pull the cascade inheritance chain for parameter collection.
      *  {@inheritDoc} */
     @Override
-    public ParameterType collectParamaters(Object base, Object[] params)
+    protected ParameterType collectParamaters(Object base, Object[] params, boolean fixedArity)
             throws Throwable {
-        ParameterType pt = super.collectParamaters(base, params);
+        ParameterType pt = super.collectParamaters(base, params, fixedArity);
         if (!isStatic())
             parameters.add(0, base);
         return new ParameterType(parameters, pt.isFixedArity);

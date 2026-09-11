@@ -65,6 +65,13 @@ class BSHPrimarySuffix extends SimpleNode
         CallStack callstack, Interpreter interpreter)
         throws EvalError
     {
+        return doSuffix(obj, toLHS, callstack, interpreter, null);
+    }
+
+    Object doSuffix(Object obj, boolean toLHS, CallStack callstack,
+            Interpreter interpreter, CallArguments.Result result) throws EvalError {
+        Class<?> receiverType = result == null ? null : result.type;
+        if (result != null) result.type = null;
         // Handle ".class" suffix operation
         // Prefix must be a BSHType
         if ( operation == CLASS )
@@ -90,27 +97,35 @@ class BSHPrimarySuffix extends SimpleNode
             that we can't just eval() - we need to direct the evaluation to
             the context sensitive type of result; namely object, class, etc.
         */
-        if ( obj instanceof Node )
-            if ( obj instanceof BSHAmbiguousName )
-                obj = ((BSHAmbiguousName)obj).toObject(callstack, interpreter);
+        if (obj instanceof Node) {
+            if (result != null) {
+                CallArguments.Result receiver = new CallArguments.Result();
+                obj = CallArguments.eval((Node) obj, callstack, interpreter, receiver);
+                receiverType = receiver.type;
+            } else if (obj instanceof BSHAmbiguousName)
+                obj = ((BSHAmbiguousName) obj).toObject(callstack, interpreter);
             else
-                obj = ((Node)obj).eval(callstack, interpreter);
-        else
-            if ( obj instanceof LHS ) try {
-                obj = ((LHS)obj).getValue();
-            } catch ( UtilEvalError e ) {
-                throw e.toEvalError( this, callstack );
-            }
+                obj = ((Node) obj).eval(callstack, interpreter);
+        } else if (obj instanceof LHS) try {
+            if (result != null) receiverType = ((LHS) obj).getType();
+            obj = ((LHS) obj).getValue();
+        } catch (UtilEvalError e) {
+            throw e.toEvalError(this, callstack);
+        }
 
         try
         {
             switch(operation)
             {
                 case INDEX:
-                    return doIndex( obj, toLHS, callstack, interpreter );
+                    Object indexed = doIndex(obj, toLHS, callstack, interpreter);
+                    if (result != null && obj.getClass().isArray())
+                        result.type = receiverType != null && receiverType.isArray()
+                                ? receiverType.getComponentType() : obj.getClass().getComponentType();
+                    return indexed;
 
                 case NAME:
-                    return doName( obj, toLHS, callstack, interpreter );
+                    return doName(obj, toLHS, callstack, interpreter, result);
 
                 case PROPERTY:
                     return doProperty( toLHS, obj, callstack, interpreter );
@@ -148,7 +163,7 @@ class BSHPrimarySuffix extends SimpleNode
     */
     private Object doName(
         Object obj, boolean toLHS,
-        CallStack callstack, Interpreter interpreter)
+        CallStack callstack, Interpreter interpreter, CallArguments.Result result)
             throws EvalError, ReflectError {
         try {
             // Safe Navigate operator ?. abort on null
@@ -178,7 +193,9 @@ class BSHPrimarySuffix extends SimpleNode
                     return new LHS(obj, field);
                 }
                 else try {
-                    return Reflect.getObjectFieldValue( obj, field );
+                    Object value = Reflect.getObjectFieldValue(obj, field);
+                    if (result != null) result.field(obj, field);
+                    return value;
                 } catch (Throwable t) {
                     try {
                         return Reflect.getObjectProperty( obj, field );
@@ -190,14 +207,15 @@ class BSHPrimarySuffix extends SimpleNode
 
             // Method invocation
             // (LHS or non LHS evaluation can both encounter method calls)
-            Object[] oa = ((BSHArguments)jjtGetChild(0)).getArguments(
-                callstack, interpreter);
+            CallArguments arguments = ((BSHArguments)jjtGetChild(0))
+                    .getCallArguments(callstack, interpreter);
+            Object[] oa = arguments.values;
 
             // Validate if can invoke this method
             Interpreter.mainSecurityGuard.canInvokeMethod(obj, field, oa);
 
             return Reflect.invokeObjectMethod(
-                obj, field, oa, interpreter, callstack, this );
+                obj, field, arguments, interpreter, callstack, this, result);
         } catch (UtilEvalError e1) {
             throw e1.toEvalError(this, callstack);
         }

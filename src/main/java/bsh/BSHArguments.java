@@ -52,17 +52,26 @@ class BSHArguments extends SimpleNode
     public Object[] getArguments( CallStack callstack, Interpreter interpreter)
         throws EvalError
     {
-        // evaluate each child
+        return getCallArguments(callstack, interpreter).values;
+    }
+
+    CallArguments getCallArguments(CallStack callstack, Interpreter interpreter)
+            throws EvalError {
+        // Evaluate each child once, keeping null's declared type beside its value.
+        Class<?>[] types = new Class<?>[jjtGetNumChildren()];
         Object[] args = new Object[jjtGetNumChildren()];
         for(int i = 0; i < args.length; i++)
         {
-            args[i] = jjtGetChild(i).eval(callstack, interpreter);
+            CallArguments.Result result = new CallArguments.Result();
+            args[i] = CallArguments.eval(jjtGetChild(i), callstack, interpreter, result);
+            types[i] = args[i] == Primitive.NULL || args[i] == null
+                    ? result.type : Types.getType(args[i]);
             if ( args[i] == Primitive.VOID )
                 throw new EvalException( "Undefined argument: " +
                     jjtGetChild(i).getText(), this, callstack );
         }
 
-        return args;
+        return new CallArguments(args, types);
     }
 }
 

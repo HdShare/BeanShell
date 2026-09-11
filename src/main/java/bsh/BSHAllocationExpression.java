@@ -77,7 +77,8 @@ class BSHAllocationExpression extends SimpleNode
     )
         throws EvalError
     {
-        Object[] args = argumentsNode.getArguments( callstack, interpreter );
+        CallArguments arguments = argumentsNode.getCallArguments(callstack, interpreter);
+        Object[] args = arguments.values;
         if ( args == null)
             throw new EvalError( "Null args in new.", this, callstack );
 
@@ -113,7 +114,7 @@ class BSHAllocationExpression extends SimpleNode
                 return constructWithClassBody(
                     type, args, body, callstack, interpreter );
         } else
-            return constructObject( type, args, callstack, interpreter );
+            return constructObject(type, arguments, callstack, interpreter);
     }
 
     Object constructFromEnclosingInstance(Object obj, CallStack callstack,
@@ -123,10 +124,9 @@ class BSHAllocationExpression extends SimpleNode
         if (jjtGetChild(0) instanceof BSHAmbiguousName)
             typeString = ((BSHAmbiguousName) jjtGetChild(0)).text;
 
-        Object[] args = null;
+        CallArguments arguments = new CallArguments(Reflect.ZERO_ARGS);
         if (jjtGetChild(1) instanceof BSHArguments)
-            args = ((BSHArguments) jjtGetChild(1)).getArguments(
-                        callstack, interpreter);
+            arguments = ((BSHArguments) jjtGetChild(1)).getCallArguments(callstack, interpreter);
 
         Class<?> type = null;
         for (Class<?> t : obj.getClass().getDeclaredClasses())
@@ -136,14 +136,14 @@ class BSHAllocationExpression extends SimpleNode
             }
 
         try {
-            return Reflect.constructObject( type, obj, args );
+            return Reflect.constructWithArguments(type, obj, arguments);
         } catch (InvocationTargetException e) {
             throw new TargetError("Object constructor", e.getCause(),
                     this, callstack, true);
         }
     }
 
-    private Object constructObject(Class<?> type, Object[] args,
+    private Object constructObject(Class<?> type, CallArguments arguments,
             CallStack callstack, Interpreter interpreter ) throws EvalError {
         final boolean isGeneratedClass = Reflect.isGeneratedClass(type);
         if (isGeneratedClass) {
@@ -151,7 +151,7 @@ class BSHAllocationExpression extends SimpleNode
         }
         Object obj;
         try {
-            obj = Reflect.constructObject( type, args );
+            obj = Reflect.constructWithArguments(type, null, arguments);
         } catch ( ReflectError e) {
             throw new EvalException(
                 "Constructor error: " + e.getMessage(), this, callstack, e);

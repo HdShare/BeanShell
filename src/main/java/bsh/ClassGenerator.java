@@ -291,20 +291,26 @@ public final class ClassGenerator {
     public static Object invokeSuperclassMethodImpl(BshClassManager bcm,
             Object instance, Class<?> classStatic, String methodName, Object[] args)
                 throws UtilEvalError, ReflectError, InvocationTargetException {
+        return invokeSuperclassMethodImpl(bcm, instance, classStatic, methodName,
+                new CallArguments(args), null);
+    }
+
+    static Object invokeSuperclassMethodImpl(BshClassManager bcm, Object instance,
+            Class<?> classStatic, String methodName, CallArguments arguments,
+            CallArguments.Result result) throws UtilEvalError, ReflectError, InvocationTargetException {
         Class<?> superClass = classStatic.getSuperclass();
         Class<?> clas = instance.getClass();
         String superName = BSHSUPER + superClass.getSimpleName() + methodName;
 
         // look for the specially named super delegate method
         Invocable superMethod = Reflect.resolveJavaMethod(clas, superName,
-                Types.getTypes(args), false/*onlyStatic*/);
-        if (superMethod != null) return superMethod.invoke(instance, args);
-
-        // No super method, try to invoke regular method
-        // could be a superfluous "super." which is legal.
-        superMethod = Reflect.resolveExpectedJavaMethod(bcm, superClass, instance,
-                methodName, args, false/*onlyStatic*/);
-        return superMethod.invoke(instance, args);
+                arguments.types, false/*onlyStatic*/);
+        if (superMethod == null)
+            // A superfluous "super." is legal, so also try the regular method.
+            superMethod = Reflect.resolveExpectedJavaMethod(bcm, superClass, instance,
+                    methodName, arguments, false/*onlyStatic*/);
+        if (result != null) result.type = superMethod.getReturnType();
+        return superMethod.invokeWithArguments(instance, arguments);
     }
 
 }
