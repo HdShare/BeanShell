@@ -55,6 +55,8 @@ Added `Interpreter.setOutputFile(String)` to redirect a specific interpreter's o
 
 Fixed an inner class that extends its own enclosing class resolving to the wrong (or, on a first definition, no) superclass (#698): `class A { class B extends A {} }` generated `B` before `A` itself was defined, so `B`'s superclass baked in whatever `A` previously existed, if any. That specific inner class is now generated only after its enclosing class is fully defined; other inner classes are unaffected and keep generating first, as before.
 
+`bsh.SimpleNode`, the base implementation of the public `bsh.Node` AST interface, is now a public class (#730), so embedding applications can name and cast to it (for example `instanceof SimpleNode`) when walking a parsed script's syntax tree.
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions
