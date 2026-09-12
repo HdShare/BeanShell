@@ -45,13 +45,11 @@
   <!-- ====================================================================== -->
 
   <path id="build.classpath">
-    <pathelement location="${maven.repo.local}/javax/servlet/javax.servlet-api/4.0.1/javax.servlet-api-4.0.1.jar"/>
   </path>
   <path id="build.test.classpath">
     <pathelement location="${maven.repo.local}/junit/junit/4.13.1/junit-4.13.1.jar"/>
     <pathelement location="${maven.repo.local}/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3.jar"/>
     <pathelement location="${maven.repo.local}/org/hamcrest/hamcrest-all/1.3/hamcrest-all-1.3.jar"/>
-    <pathelement location="${maven.repo.local}/javax/servlet/javax.servlet-api/4.0.1/javax.servlet-api-4.0.1.jar"/>
   </path>
 
   <!-- ====================================================================== -->
@@ -264,11 +262,6 @@
     <mkdir dir="${maven.repo.local}/org/hamcrest/hamcrest-all/1.3"/>
     <get src="https://repo.maven.apache.org/maven2/org/hamcrest/hamcrest-all/1.3/hamcrest-all-1.3.jar"
          dest="${maven.repo.local}/org/hamcrest/hamcrest-all/1.3/hamcrest-all-1.3.jar"
-         usetimestamp="false"
-         ignoreerrors="true"/>
-    <mkdir dir="${maven.repo.local}/javax/servlet/javax.servlet-api/4.0.1"/>
-    <get src="https://repo.maven.apache.org/maven2/javax/servlet/javax.servlet-api/4.0.1/javax.servlet-api-4.0.1.jar"
-         dest="${maven.repo.local}/javax/servlet/javax.servlet-api/4.0.1/javax.servlet-api-4.0.1.jar"
          usetimestamp="false"
          ignoreerrors="true"/>
   </target>

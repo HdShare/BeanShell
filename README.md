@@ -114,7 +114,7 @@ The old documentation available at [http://beanshell.org](http://www.beanshell.o
 
  - Dynamic execution of the entire Java syntax, Java code fragments, loosely typed Java, and additional scripting conveniences.
  - Transparent access to all Java objects and APIs.
- - Runs in four modes: Command Line, Console, Applet, and Remote Session Server.
+ - Runs in three modes: Command Line, Console, and Applet.
  - Works in security-constrained environments without a classloader or bytecode generation for most features.
  - The interpreter is small, ~400K jar file.
  - Pure Java.

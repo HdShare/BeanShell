@@ -59,6 +59,8 @@ Fixed an inner class that extends its own enclosing class resolving to the wrong
 
 The result of a void method call may now be assigned to an untyped or `Object`-declared variable, for example `x = voidMethod();` or `Object x = voidMethod();` (#775), instead of throwing `illegal void assignment` / `Void initializer.`. Assigning to any other declared type, any compound assignment (`x += voidMethod()`), and a bare or dotted reference to an undefined name or property (`x = undefinedVar;`, `x = obj.noSuchProperty;`) are all unchanged and still errors.
 
+Removed the built-in HTTP server (`server()` command, `bsh.util.Httpd`, `bsh.util.Sessiond`), the `bsh.servlet` package, and the remote console applets (#496). None of it was authenticated: `server()` opened an unauthenticated `bsh` session on the network, and the servlet evaluated a script passed in as a request parameter. Local, non-networked applet demos (`JDemoApplet`, `AWTDemoApplet`) are unaffected.
+
 ## 2.1.1
 
 Fix src/bsh/util/AWTConsole.java breakage with newer Java versions
