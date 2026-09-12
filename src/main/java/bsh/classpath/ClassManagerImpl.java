@@ -360,7 +360,7 @@ public class ClassManagerImpl extends BshClassManager
         baseClassPath = new BshClassPath("baseClassPath");
         baseLoader = null;
         loaderMap.clear();
-        classLoaderChanged(); // calls clearCaches() for us.
+        classLoaderChanged();
     }
 
     /**
@@ -604,6 +604,7 @@ public class ClassManagerImpl extends BshClassManager
     */
     @Override
     protected void classLoaderChanged() {
+        clearCaches();
         List<WeakReference<Listener>> toRemove = new ArrayList<>(); // safely remove
         for (WeakReference<Listener> wr : listeners) {
             Listener l = wr.get();

@@ -4,8 +4,11 @@ import static bsh.BshClassManager.Listener;
 import static bsh.TestUtil.measureConcurrentTime;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertTrue;
 
+import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,6 +47,19 @@ public class ClassManagerImplTest {
         measureConcurrentTime(runnable, 30, 30, 100);
         heap.clear();
         cm.reset();
+        bsh.getNameSpace().clear();
+    }
+
+    @Test
+    public void cm_add_class_path_after_failed_lookup() throws Exception {
+        final Interpreter bsh = new Interpreter();
+        ClassManagerImpl cm = (ClassManagerImpl) bsh.getNameSpace().getClassManager();
+        assertThat(cm.classForName("AddClass"), nullValue());
+
+        File jar = bsh.pathToFile("src/test/resources/test-scripts/Data/addclass.jar");
+        cm.addClassPath(jar.toURI().toURL());
+
+        assertThat(cm.classForName("AddClass"), notNullValue());
         bsh.getNameSpace().clear();
     }
 
