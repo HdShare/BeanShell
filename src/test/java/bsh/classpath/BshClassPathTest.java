@@ -171,6 +171,18 @@ public class BshClassPathTest {
         assertThat(Arrays.asList(bcp.getPathComponents()), hasSize(1));
     }
 
+    @Test( timeout = 30000 )
+    public void a_file_named_like_an_archive_that_is_not_one_is_skipped()
+            throws Exception {
+        File dir = dirContainingJar();
+        Files.write(new File(dir, "broken.jar").toPath(),
+                "not an archive".getBytes("UTF-8"));
+
+        BshClassPath bcp = new BshClassPath("test");
+        bcp.add(BshClassPath.expand(new URL[] { dir.toURI().toURL() }));
+        assertThat(bcp.getClassSource("AddClass"), instanceOf(JarClassSource.class));
+    }
+
     @Test
     public void expand_leaves_non_directories_alone() throws Exception {
         File jar = new File("src/test/resources/test-scripts/Data/addclass.jar");

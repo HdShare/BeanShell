@@ -606,7 +606,11 @@ public class ClassManagerImpl extends BshClassManager
     */
     @Override
     protected void classLoaderChanged() {
-        clearCaches();
+        // Only the negative cache goes stale here: a new path component can
+        // turn "no such class" into a class, never the reverse. memberCache is
+        // shared by every interpreter in the JVM, so clearing it here would
+        // empty it on each ClassManagerImpl construction.
+        absoluteNonClasses.clear();
         List<WeakReference<Listener>> toRemove = new ArrayList<>(); // safely remove
         for (WeakReference<Listener> wr : listeners) {
             Listener l = wr.get();

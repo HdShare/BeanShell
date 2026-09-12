@@ -557,14 +557,13 @@ public class BshClassPath
      * @throws IOException of any reading problems  */
     static String[] searchArchiveForClasses( URL url ) throws IOException {
         List<String> list = new ArrayList<>();
-        ZipInputStream zip = new ZipInputStream(url.openStream());
-
-        ZipEntry ze;
-        while( zip.available() == 1 )
-            if ( (ze = zip.getNextEntry()) != null
-                    && isClassFileName( ze.getName() ) )
-                list.add( canonicalizeClassName( ze.getName() ) );
-        zip.close();
+        // available() stays 1 past the last entry, so it never ends the loop
+        try ( ZipInputStream zip = new ZipInputStream(url.openStream()) ) {
+            ZipEntry ze;
+            while ( (ze = zip.getNextEntry()) != null )
+                if ( isClassFileName( ze.getName() ) )
+                    list.add( canonicalizeClassName( ze.getName() ) );
+        }
 
         return list.toArray( new String[list.size()] );
     }

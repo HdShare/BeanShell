@@ -9,11 +9,27 @@ import fixture.OptionalMethodFixture;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertThrows;
 
 @RunWith(FilteredTestRunner.class)
 public class BshClassManagerTest {
+
+    @Test
+    public void constructing_an_interpreter_keeps_the_shared_member_cache()
+            throws Exception {
+        Interpreter interpreter = new Interpreter();
+        interpreter.eval("x = \"s\"; x.length(); x.substring(0, 1);");
+        int cached = BshClassManager.memberCache.size();
+        assertTrue("member cache populated", cached > 0);
+
+        new Interpreter();
+
+        assertEquals("memberCache is shared by every interpreter in the JVM",
+                cached, BshClassManager.memberCache.size());
+    }
 
     @Test
     public void class_literal_does_not_resolve_unused_method_dependencies()
