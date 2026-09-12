@@ -46,6 +46,8 @@ class BSHMethodDeclaration extends SimpleNode
     // Unsafe caching of type here.
     Class<?> returnType;  // null (none), Void.TYPE, or a Class
     int numThrows = 0;
+    // trailing brackets on the declarator, as in int f()[]
+    int returnDimensions = 0;
     boolean isVarArgs;
     private boolean isScriptedObject;
 
@@ -69,6 +71,9 @@ class BSHMethodDeclaration extends SimpleNode
             if ( jjtGetNumChildren() > 2+numThrows )
                 blockNode = (BSHBlock)jjtGetChild(2+numThrows); // skip throws
             ++firstThrowsClause;
+            if ( !returnTypeNode.isVoid )
+                for ( int i = 0; i < returnDimensions; i++ )
+                    returnTypeNode.getTypeNode().addArrayDimension();
         }
         else
         {

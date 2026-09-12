@@ -586,6 +586,16 @@ TOKEN : /* OPERATORS */
 | < ELLIPSIS: "..." >
 }
 
+/*
+    Declared after the @word operators on purpose: the longest match wins, so
+    "@org" beats "@or", while an exact "@or" ties and goes to the operator
+    declared first.
+*/
+TOKEN : /* ANNOTATION */
+{
+  < AT_NAME: "@" <LETTER> (<LETTER>|<DIGIT>)* >
+}
+
 
 /*
     Thanks to Sreenivasa Viswanadha for suggesting how to get rid of expensive
@@ -620,6 +630,8 @@ Modifiers Modifiers( int context, boolean lookahead ) :
 }
 {
   (
+    Annotation()
+  |
     (
         "private" | "protected" | "public" | "synchronized" | "final"
         | "native" | "transient" | "volatile" | "abstract" | "static"
@@ -638,6 +650,41 @@ Modifiers Modifiers( int context, boolean lookahead ) :
   }
 }
 
+
+/*
+    Annotations are accepted and discarded; nothing is retained on the
+    generated class. Any nodes the element values built are popped back off
+    so the annotation leaves no children on the declaration it precedes.
+*/
+void Annotation() #void :
+{ int mark; }
+{
+    { mark = jjtree.nodeArity(); }
+    <AT_NAME> ( <DOT> <IDENTIFIER> )* [ LOOKAHEAD(2) <LPAREN> [ ElementValuePairs() ] <RPAREN> ]
+    { while ( jjtree.nodeArity() > mark ) jjtree.popNode(); }
+}
+
+void ElementValuePairs() #void :
+{ }
+{
+    ElementValuePair() ( <COMMA> ElementValuePair() )*
+}
+
+void ElementValuePair() #void :
+{ }
+{
+    LOOKAHEAD( <IDENTIFIER> <ASSIGN> ) <IDENTIFIER> <ASSIGN> ElementValue()
+|
+    ElementValue()
+}
+
+void ElementValue() #void :
+{ }
+{
+    LOOKAHEAD( <AT_NAME> ) Annotation()
+|
+    VariableInitializer()
+}
 
 /**
 */
@@ -709,6 +756,7 @@ void MethodDeclaration() #MethodDeclaration :
     t = <IDENTIFIER> { jjtThis.name = t.image; }
 )
     FormalParameters()
+    ( "[" "]" { jjtThis.returnDimensions++; } )*
     [ "throws" count=NameList() { jjtThis.numThrows=count; } ]
     ( Block() | ";" )
 }
@@ -768,6 +816,7 @@ void FormalParameter() #FormalParameter :
   Token t;
 }
 {
+  ( Annotation() )*
 ( LOOKAHEAD(2) [ "final" { jjtThis.isFinal = true; } ]
   Type()[ <ELLIPSIS> { jjtThis.isVarArgs = true; } ]
   t=<IDENTIFIER> { jjtThis.name = t.image; }
@@ -1013,9 +1062,9 @@ void UnaryExpression() :
 // This production only looks ahead to see if the next matches a cast.
 void CastLookahead() : { }
 {
-  LOOKAHEAD(2) <LPAREN> PrimitiveType()
+  LOOKAHEAD(2) <LPAREN> PrimitiveType() ( <LBRACKET> <RBRACKET> )* <RPAREN>
 |
-  LOOKAHEAD( <LPAREN> AmbiguousName() <LBRACKET> ) <LPAREN> AmbiguousName() <LBRACKET> <RBRACKET>
+  LOOKAHEAD( <LPAREN> AmbiguousName() <LBRACKET> ) <LPAREN> AmbiguousName() ( <LBRACKET> <RBRACKET> )+ <RPAREN>
 |
  <LPAREN> AmbiguousName() <RPAREN> ( <TILDE> | <BANG> | <LPAREN> | <IDENTIFIER> | <NEW> | Literal() | ArrayDimensions() )
 }
