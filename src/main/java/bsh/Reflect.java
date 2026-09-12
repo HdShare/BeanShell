@@ -26,6 +26,7 @@
 package bsh;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
 import java.lang.reflect.Modifier;
@@ -1331,7 +1332,7 @@ public final class Reflect {
     @SuppressWarnings("unchecked")
     static <T> T[] getEnumConstants(Class<T> enm) {
         return Stream.of(enm.getFields())
-                .filter(f -> f.getType() == enm)
+                .filter(Field::isEnumConstant)
                 .map(f -> {
             try {
                 return f.get(null);

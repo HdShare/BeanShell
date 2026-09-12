@@ -92,7 +92,7 @@ public final class ClassGenerator {
             new SelfExtendingClassFilter(name, false));
 
         // Generate the type for our class
-        Variable[] variables = getDeclaredVariables(block, callstack, interpreter, packageName);
+        Variable[] variables = getDeclaredVariables(block, callstack, interpreter, packageName, name, fqClassName);
         DelayedEvalBshMethod[] methods = getDeclaredMethods(block, callstack, interpreter, packageName, superClass);
 
         // initialize static this singleton in namespace
@@ -158,6 +158,29 @@ public final class ClassGenerator {
     }
 
     static Variable[] getDeclaredVariables(BSHBlock body, CallStack callstack, Interpreter interpreter, String defaultPackage) {
+        return getDeclaredVariables(body, callstack, interpreter, defaultPackage, null, null);
+    }
+
+    /** The class being generated cannot be resolved by name yet, so a field
+     * declared with its type is described by its own descriptor instead (#813).
+     * @return the descriptor, or null when the type is not the class itself */
+    private static String selfTypeDescriptor(BSHTypedVariableDeclaration tvd, String className, String fqClassName) {
+        if ( null == className )
+            return null;
+        BSHType typeNode = tvd.getTypeNode();
+        Node named = typeNode.getTypeNode();
+        if ( !(named instanceof BSHAmbiguousName)
+                || !className.equals(((BSHAmbiguousName) named).text) )
+            return null;
+        StringBuilder descriptor = new StringBuilder();
+        for ( int i = 0; i < typeNode.getArrayDims(); i++ )
+            descriptor.append('[');
+        return descriptor.append('L')
+                .append(fqClassName.replace('.', '/'))
+                .append(';').toString();
+    }
+
+    static Variable[] getDeclaredVariables(BSHBlock body, CallStack callstack, Interpreter interpreter, String defaultPackage, String className, String fqClassName) {
         List<Variable> vars = new ArrayList<Variable>();
         for (int child = 0; child < body.jjtGetNumChildren(); child++) {
             Node node = body.jjtGetChild(child);
@@ -174,11 +197,13 @@ public final class ClassGenerator {
                 BSHTypedVariableDeclaration tvd = (BSHTypedVariableDeclaration) node;
                 Modifiers modifiers = tvd.modifiers;
                 BSHVariableDeclarator[] vardec = tvd.getDeclarators();
+                String selfType = selfTypeDescriptor(tvd, className, fqClassName);
                 for (BSHVariableDeclarator aVardec : vardec) {
                     String name = aVardec.name;
                     try {
-                        Class<?> type = tvd.evalType(callstack, interpreter);
-                        Variable var = new Variable(name, type, null/*value*/, modifiers);
+                        Variable var = null == selfType
+                            ? new Variable(name, tvd.evalType(callstack, interpreter), null/*value*/, modifiers)
+                            : new Variable(name, selfType, null/*value*/, modifiers);
                         vars.add(var);
                     } catch (UtilEvalError | EvalError e) {
                         // value error shouldn't happen

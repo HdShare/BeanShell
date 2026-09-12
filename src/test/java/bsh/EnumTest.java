@@ -12,6 +12,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Rule;
@@ -135,6 +136,8 @@ public class EnumTest {
         assertThat("array containing VAL1, VAL2, VAL3, VAL4", obj, arrayContaining(
                 bsh.eval("E4.VAL1"), bsh.eval("E4.VAL2"),
                 bsh.eval("E4.VAL3"), bsh.eval("E4.VAL4")));
+        // excluded because it is not an enum constant, not because it is missing
+        assertNotNull(((Class<?>) bsh.eval("E4.class")).getDeclaredField("enm"));
         bsh.getNameSpace().clear();
     }
 

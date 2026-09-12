@@ -149,6 +149,24 @@ public class ClassGeneratorTest {
     }
 
     @Test
+    public void field_typed_as_the_class_being_generated() throws Exception {
+        assertEquals("tail", eval(
+            "class Node { Node next; String val; }",
+            "Node head = new Node();",
+            "head.next = new Node();",
+            "head.next.val = \"tail\";",
+            "return head.next.val;"));
+    }
+
+    @Test
+    public void self_typed_field_is_not_shadowed_by_an_imported_class() throws Exception {
+        Class<?> cls = (Class<?>) eval(
+            "class Node { Node next; }",
+            "return Node.class;");
+        assertEquals(cls, cls.getDeclaredField("next").getType());
+    }
+
+    @Test
     public void class_with_abstract_method_must_be_abstract() throws Exception {
         thrown.expect(EvalError.class);
         thrown.expectMessage(containsString("Test is not abstract and does not override abstract method x() in Test"));

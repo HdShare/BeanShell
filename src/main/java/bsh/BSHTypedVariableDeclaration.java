@@ -34,7 +34,7 @@ class BSHTypedVariableDeclaration extends SimpleNode {
 
     BSHTypedVariableDeclaration(int id) { super(id); }
 
-    private BSHType getTypeNode() {
+    BSHType getTypeNode() {
         return ((BSHType)jjtGetChild(0));
     }
 
