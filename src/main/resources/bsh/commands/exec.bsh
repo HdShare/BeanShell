@@ -23,7 +23,16 @@ int exec( String [] command )
         .start();
     this.output = new BufferedReader(
         new InputStreamReader( this.process.getInputStream() ) );
-    while ( (line = this.output.readLine()) != null )
-        print( line );
-    return this.process.waitFor();
+    try {
+        while ( (line = this.output.readLine()) != null )
+            print( line );
+        return this.process.waitFor();
+    } catch ( InterruptedException e ) {
+        // waitFor() clears the flag, and the caller still has to see it
+        Thread.currentThread().interrupt();
+        throw e;
+    } finally {
+        this.output.close();
+        this.process.destroy();
+    }
 }
