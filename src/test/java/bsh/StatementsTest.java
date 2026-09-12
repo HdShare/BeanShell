@@ -124,6 +124,42 @@ public class StatementsTest {
     }
 
     @Test
+    public void operator_words_lex_as_operators_without_surrounding_space()
+            throws Exception {
+        assertEquals(8, eval("return 2@pow3;"));
+        assertEquals(1, eval("a=7; b=3; return a@modb;"));
+        assertEquals(true, eval("t=true; f=false; return t@orf;"));
+        assertEquals(2, eval("q=12; return q@mod5;"));
+    }
+
+    @Test
+    public void an_annotation_name_may_begin_with_an_operator_word()
+            throws Exception {
+        assertEquals("ok", eval(
+            "class C { @org.junit.Test @android.Foo String m() { return \"ok\"; } }",
+            "return new C().m();"));
+    }
+
+    @Test
+    public void an_annotation_may_follow_one_that_has_arguments()
+            throws Exception {
+        assertEquals("ok", eval(
+            "class C {",
+                "@Foo(a=1) @Outer(@Inner(\"v\")) @org.junit.Test",
+                "String m() { return \"ok\"; }",
+            "}",
+            "return new C().m();"));
+    }
+
+    @Test
+    public void an_operator_word_still_splits_after_an_annotated_declaration()
+            throws Exception {
+        assertEquals(8, eval(
+            "class C { @Foo String s = \"x\"; int v = 2@pow3; }",
+            "return new C().v;"));
+    }
+
+    @Test
     public void switch_on_enum() throws Exception {
         Object ret = eval(
             "enum Test { KEY1, KEY2 }",

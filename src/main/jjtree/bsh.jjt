@@ -42,6 +42,7 @@ options {
     NODE_PREFIX="BSH";
     NODE_PACKAGE="bsh";
     NODE_CLASS="bsh.SimpleNode";
+    COMMON_TOKEN_ACTION=true;
 
     /* Unused options
     VISITOR=false;
@@ -343,6 +344,120 @@ public class Parser
 }
 
 PARSER_END(Parser)
+
+TOKEN_MGR_DECLS :
+{
+    /** The @word operators, longest first so @and_assign beats @and. */
+    private static final String [] AT_OPERATORS = {
+        "@right_unsigned_shift_assign",
+        "@right_unsigned_shift",
+        "@right_shift_assign",
+        "@left_shift_assign",
+        "@bitwise_and",
+        "@bitwise_xor",
+        "@right_shift",
+        "@bitwise_or",
+        "@left_shift",
+        "@and_assign",
+        "@xor_assign",
+        "@mod_assign",
+        "@pow_assign",
+        "@or_assign",
+        "@lteq",
+        "@gteq",
+        "@and",
+        "@mod",
+        "@pow",
+        "@gt",
+        "@lt",
+        "@or"
+    };
+
+    private static final int [] AT_OPERATOR_KINDS = {
+        RUNSIGNEDSHIFTASSIGNX,
+        RUNSIGNEDSHIFTX,
+        RSIGNEDSHIFTASSIGNX,
+        LSHIFTASSIGNX,
+        BIT_ANDX,
+        XORX,
+        RSIGNEDSHIFTX,
+        BIT_ORX,
+        LSHIFTX,
+        ANDASSIGNX,
+        XORASSIGNX,
+        MODASSIGNX,
+        POWERASSIGNX,
+        ORASSIGNX,
+        LEX,
+        GEX,
+        BOOL_ANDX,
+        MODX,
+        POWERX,
+        GTX,
+        LTX,
+        BOOL_ORX
+    };
+
+    private int lastTokenKind = -1;
+
+    /** 0 outside an annotation, 1 in its name, 2 inside its argument list. */
+    private int annotationState = 0;
+    private int annotationParens = 0;
+
+    /** @return whether a token of this kind can be the end of an operand */
+    private static boolean endsOperand( int kind ) {
+        switch ( kind ) {
+            case IDENTIFIER: case INTEGER_LITERAL: case FLOATING_POINT_LITERAL:
+            case CHARACTER_LITERAL: case STRING_LITERAL:
+            case TRUE: case FALSE: case NULL:
+            case RPAREN: case RBRACKET:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /** An annotation name and an @word operator both begin with '@', and the
+        longest match would make "2@pow3" a single annotation token. Only an
+        operator can follow an operand, so split the operator back off there. */
+    void CommonTokenAction( Token t ) {
+        if ( t.kind == AT_NAME && 0 == annotationState
+                && endsOperand( lastTokenKind ) )
+            for ( int i = 0; i < AT_OPERATORS.length; i++ )
+                if ( t.image.length() > AT_OPERATORS[i].length()
+                        && t.image.startsWith( AT_OPERATORS[i] ) ) {
+                    input_stream.backup(
+                        t.image.length() - AT_OPERATORS[i].length() );
+                    t.image = AT_OPERATORS[i];
+                    t.kind = AT_OPERATOR_KINDS[i];
+                    t.endColumn = t.beginColumn + AT_OPERATORS[i].length() - 1;
+                    break;
+                }
+
+        // One annotation can follow another, so its name and arguments are not
+        // a place where an operand ends however much they look like one.
+        if ( AT_NAME == t.kind && 0 == annotationState ) {
+            annotationState = 1;
+            annotationParens = 0;
+        } else if ( 0 != annotationState ) {
+            if ( LPAREN == t.kind ) {
+                annotationParens++;
+                annotationState = 2;
+            } else if ( RPAREN == t.kind ) {
+                if ( 0 == --annotationParens )
+                    annotationState = 1;
+            } else if ( 0 == annotationParens && AT_NAME != t.kind
+                    && DOT != t.kind && IDENTIFIER != t.kind )
+                annotationState = 0;
+        }
+
+        if ( EOF == t.kind ) {
+            annotationState = 0;
+            lastTokenKind = -1;
+        } else
+            lastTokenKind = t.kind;
+    }
+}
 
 SKIP : /* WHITE SPACE and TYPE PARAMATERS */
 {
