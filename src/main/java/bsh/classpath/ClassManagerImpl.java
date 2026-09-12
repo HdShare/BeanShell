@@ -371,7 +371,11 @@ public class ClassManagerImpl extends BshClassManager
     */
     @Override
     public void setClassPath( URL [] cp ) {
-        baseClassPath.setPath( BshClassPath.expand( cp ) );
+        setClassPathImpl( BshClassPath.expand( cp ) );
+    }
+
+    private void setClassPathImpl( URL [] cp ) {
+        baseClassPath.setPath( cp );
         initBaseLoader();
         loaderMap.clear();
         classLoaderChanged();
@@ -389,7 +393,8 @@ public class ClassManagerImpl extends BshClassManager
         BshClassPath bcp = new BshClassPath("temp");
         bcp.addComponent( baseClassPath );
         bcp.addComponent( BshClassPath.getUserClassPath() );
-        setClassPath( bcp.getPathComponents() );
+        // already expanded on the way in; the JVM's own path is left alone
+        setClassPathImpl( bcp.getPathComponents() );
     }
 
     /**

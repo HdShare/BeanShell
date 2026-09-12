@@ -43,9 +43,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -85,7 +87,8 @@ public class BshClassPath
     String name;
 
     /** The URL path components */
-    private final Set<URL> path = ConcurrentHashMap.newKeySet();
+    private final Set<URL> path =
+        Collections.synchronizedSet( new LinkedHashSet<URL>() );
     /** Ordered list of components BshClassPaths */
     private final Set<BshClassPath> compPaths = ConcurrentHashMap.newKeySet();
 
@@ -156,6 +159,15 @@ public class BshClassPath
         was started with, which keeps resolution there the same as the JVM's.
         @param urls the path components to expand
         @return the components followed by any archives they contain */
+    /** @return the file a file: URL names, undoing any percent-encoding */
+    private static File toFile( URL url ) {
+        try {
+            return new File( url.toURI() );
+        } catch ( URISyntaxException | IllegalArgumentException e ) {
+            return new File( url.getFile() );
+        }
+    }
+
     public static URL[] expand( URL[] urls ) {
         List<URL> expanded = new ArrayList<>();
         for ( URL url : urls ) {
@@ -163,7 +175,7 @@ public class BshClassPath
                 expanded.add( url );
             if ( !"file".equals(url.getProtocol()) )
                 continue;
-            File dir = new File( url.getFile() );
+            File dir = toFile( url );
             if ( !dir.isDirectory() )
                 continue;
             File[] files = dir.listFiles();
@@ -312,7 +324,9 @@ public class BshClassPath
                     list.add( o );
             }
         });
-        list.addAll( path );
+        synchronized ( path ) {
+            list.addAll( path );
+        }
         return list;
     }
 
@@ -401,8 +415,8 @@ public class BshClassPath
             classMapping("FileSystem: "+url );
             map( searchJarFSForClasses( url ), new JarClassSource(url) );
         } else {
-            String name = url.getFile();
-            File f = new File( name );
+            File f = toFile( url );
+            String name = f.getPath();
 
             if ( f.isDirectory() ) {
                 classMapping( "Directory "+ f.toString() );

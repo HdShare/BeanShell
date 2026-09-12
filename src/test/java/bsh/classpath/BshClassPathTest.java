@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.endsWith;
@@ -181,6 +182,38 @@ public class BshClassPathTest {
         BshClassPath bcp = new BshClassPath("test");
         bcp.add(BshClassPath.expand(new URL[] { dir.toURI().toURL() }));
         assertThat(bcp.getClassSource("AddClass"), instanceOf(JarClassSource.class));
+    }
+
+    @Test
+    public void expand_decodes_a_percent_encoded_directory() throws Exception {
+        File dir = temporary.newFolder("my libs");
+        Files.copy(new File("src/test/resources/test-scripts/Data/addclass.jar").toPath(),
+                new File(dir, "addclass.jar").toPath(), StandardCopyOption.REPLACE_EXISTING);
+        assertThat(Arrays.asList(BshClassPath.expand(new URL[] { dir.toURI().toURL() })),
+                hasSize(2));
+    }
+
+    @Test
+    public void path_components_keep_the_order_they_were_added() throws Exception {
+        File dir = temporary.newFolder("ordered");
+        for (String name : new String[] { "zzz.jar", "aaa.jar", "mmm.jar" })
+            Files.copy(new File("src/test/resources/test-scripts/Data/addclass.jar").toPath(),
+                    new File(dir, name).toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+        BshClassPath bcp = new BshClassPath("test");
+        bcp.add(BshClassPath.expand(new URL[] { dir.toURI().toURL() }));
+
+        List<String> names = new ArrayList<>();
+        for (URL url : bcp.getPathComponents())
+            names.add(new File(url.getFile()).getName());
+        assertThat(names, contains("ordered", "aaa.jar", "mmm.jar", "zzz.jar"));
+    }
+
+    @Test
+    public void reloading_does_not_expand_the_jvm_class_path() throws Exception {
+        File dir = dirContainingJar();
+        BshClassPath user = new BshClassPath("user", new URL[] { dir.toURI().toURL() });
+        assertThat(Arrays.asList(user.getPathComponents()), hasSize(1));
     }
 
     @Test
