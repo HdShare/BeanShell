@@ -121,34 +121,6 @@ public class ClassGeneratorTest {
     }
 
     @Test
-    public void untyped_parameter_overrides_abstract_method() throws Exception {
-        assertEquals("got:x", eval(
-            "abstract class Base { abstract Object run(String s); }",
-            "Base b = new Base() { run(s) { return \"got:\" + s; } };",
-            "return b.run(\"x\");"));
-    }
-
-    @Test
-    public void untyped_parameter_overrides_inherited_method() throws Exception {
-        assertEquals("sub:x", eval(
-            "class Base { Object run(String s) { return \"super\"; } }",
-            "class Sub extends Base { run(s) { return \"sub:\" + s; } }",
-            "return new Sub().run(\"x\");"));
-    }
-
-    @Test
-    public void untyped_parameter_stays_object_when_overloads_are_ambiguous() throws Exception {
-        Class<?> cls = (Class<?>) eval(
-            "class Base {",
-                "Object run(String s) { return \"string\"; }",
-                "Object run(Integer i) { return \"integer\"; }",
-            "}",
-            "class Sub extends Base { run(s) { return \"object\"; } }",
-            "return Sub.class;");
-        assertNotNull(cls.getDeclaredMethod("run", Object.class));
-    }
-
-    @Test
     public void field_typed_as_the_class_being_generated() throws Exception {
         assertEquals("tail", eval(
             "class Node { Node next; String val; }",

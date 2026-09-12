@@ -285,17 +285,14 @@ public class ClassGeneratorUtil implements Opcodes {
             if (method.isVarArgs())
                modifiers |= ACC_VARARGS;
             boolean isStatic = (modifiers & ACC_STATIC) > 0;
-            String[] paramTypes = isStatic || method.isVarArgs()
-                    ? method.getParamTypeDescriptors()
-                    : inheritedParamTypes(method);
 
             generateMethod(className, fqClassName, method.getName(), method.getReturnTypeDescriptor(),
-                    paramTypes, modifiers, cw);
+                    method.getParamTypeDescriptors(), modifiers, cw);
 
             // check if method overrides existing method and generate super delegate.
-            if ( null != classContainsMethod(superClass, method.getName(), paramTypes) && !isStatic )
+            if ( null != classContainsMethod(superClass, method.getName(), method.getParamTypeDescriptors()) && !isStatic )
                 generateSuperDelegateMethod(superClass, superClassName, method.getName(), method.getReturnTypeDescriptor(),
-                        paramTypes, ACC_PUBLIC, cw);
+                        method.getParamTypeDescriptors(), ACC_PUBLIC, cw);
         }
 
         return cw.toByteArray();
@@ -796,50 +793,6 @@ public class ClassGeneratorUtil implements Opcodes {
      * @param methodName name of method
      * @param paramTypes type descriptor of parameter types
      * @return matching method or null if not found */
-    /** Resolve the descriptors an untyped parameter list should be generated with.
-     * An untyped parameter is otherwise Object, which does not override an
-     * inherited method declaring a narrower type, so adopt the inherited
-     * descriptors when exactly one inherited method can be meant.
-     * @return the descriptors to generate the method with */
-    private String[] inheritedParamTypes(DelayedEvalBshMethod method) {
-        String[] declared = method.getParamTypeDescriptors();
-        boolean[] untyped = method.getUntypedParams();
-        if ( null == untyped || declared.length == 0 )
-            return declared;
-        boolean anyUntyped = false;
-        for ( boolean u : untyped )
-            anyUntyped |= u;
-        if ( !anyUntyped )
-            return declared;
-
-        String[] found = null;
-        for ( Method candidate : gatherInheritedMethods() ) {
-            if ( !candidate.getName().equals(method.getName())
-                    || candidate.getParameterCount() != declared.length )
-                continue;
-            String[] candidateTypes = getTypeDescriptors(candidate.getParameterTypes());
-            boolean matches = true;
-            for ( int i = 0; i < declared.length && matches; i++ )
-                matches = untyped[i] || declared[i].equals(candidateTypes[i]);
-            if ( !matches )
-                continue;
-            if ( null != found && !Arrays.equals(found, candidateTypes) )
-                return declared; // ambiguous, leave the parameters as Object
-            found = candidateTypes;
-        }
-        return null == found ? declared : found;
-    }
-
-    /** @return every method inherited from the superclass chain and interfaces */
-    private List<Method> gatherInheritedMethods() {
-        List<Method> methods = new ArrayList<>();
-        for ( Class<?> clas = superClass; null != clas; clas = clas.getSuperclass() )
-            methods.addAll(Arrays.asList(clas.getDeclaredMethods()));
-        for ( Class<?> intf : interfaces )
-            methods.addAll(Arrays.asList(intf.getMethods()));
-        return methods;
-    }
-
     static Method classContainsMethod(Class<?> clas, String methodName, String[] paramTypes) {
         while ( clas != null ) {
             for ( Method method : clas.getDeclaredMethods() )
