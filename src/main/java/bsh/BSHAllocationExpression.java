@@ -196,7 +196,13 @@ class BSHAllocationExpression extends SimpleNode
     {
         String anon = "anon" + (++innerClassCount);
         String name = callstack.top().getName().replace('/', '_') + "$" + anon;
-        This.CONTEXT_ARGS.get().put(anon, superConstructorArgs(type, arguments));
+        try {
+            This.CONTEXT_ARGS.get().put(anon,
+                superConstructorArgs(type, arguments));
+        } catch ( Throwable e ) {
+            throw new EvalException("Error constructing inner class instance: "
+                + e, this, callstack, e);
+        }
         Modifiers modifiers = new Modifiers(Modifiers.CLASS);
         Class<?> clas = ClassGenerator.getClassGenerator().generateClass(
                 name, modifiers, null/*interfaces*/, type/*superClass*/,
@@ -216,19 +222,35 @@ class BSHAllocationExpression extends SimpleNode
      * static per-slot bytecode with no vararg awareness of its own, so the
      * vararg tail must already be wrapped (or not) correctly here, using the
      * same declared-type reasoning as an ordinary varargs invocation. */
-    private static Object[] superConstructorArgs(Class<?> type, CallArguments arguments) {
+    private static Object[] superConstructorArgs(Class<?> type, CallArguments arguments)
+            throws Throwable {
         Invocable con = BshClassManager.memberCache.get(type)
                 .findMethod(type.getName(), arguments.types);
-        if ( con == null || !con.isVarArgs() || (con.isInnerClass() && !con.isStatic())
-                || con.isFixedArity(arguments) )
+        if ( con == null || !con.isVarArgs() || (con.isInnerClass() && !con.isStatic()) )
             return arguments.values;
         int lastIndex = con.getParameterCount() - 1;
-        if ( lastIndex < 0 || lastIndex >= arguments.values.length )
+        if ( lastIndex < 0 || lastIndex > arguments.values.length )
             return arguments.values;
+        Class<?> arrayType = con.getParameterTypes()[lastIndex];
+        // The caller may have passed the array itself rather than a tail. This
+        // is the declared type, not the value: (Object[])null and (Object)null
+        // are both a null value and only the type tells them apart.
+        if ( arguments.values.length == con.getParameterCount() ) {
+            Class<?> lastType = arguments.types[lastIndex];
+            if ( null == lastType || arrayType.isAssignableFrom(lastType) )
+                return arguments.values;
+        }
         Object[] wrapped = new Object[con.getParameterCount()];
         System.arraycopy(arguments.values, 0, wrapped, 0, lastIndex);
-        wrapped[lastIndex] = java.util.Arrays.copyOfRange(
-                arguments.values, lastIndex, arguments.values.length);
+        // the tail has to be the constructor's own array type, not Object[],
+        // or the super() call finds no matching constructor
+        Class<?> component = arrayType.getComponentType();
+        int tail = arguments.values.length - lastIndex;
+        Object varargs = Array.newInstance(component, tail);
+        for ( int i = 0; i < tail; i++ )
+            Array.set(varargs, i,
+                    con.coerceToType(arguments.values[lastIndex + i], component));
+        wrapped[lastIndex] = varargs;
         return wrapped;
     }
 

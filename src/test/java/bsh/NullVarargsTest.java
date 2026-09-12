@@ -27,6 +27,12 @@ import org.junit.Test;
 
 /** Java reference calls for issue #778. */
 public class NullVarargsTest {
+    /** A typed varargs constructor: the tail must be a String[], not Object[]. */
+    public static class TypedVarargs {
+        public final String kind;
+        public TypedVarargs(String... parts) { kind = "String..." + parts.length; }
+    }
+
     public static class Target {
         public Object[] array;
         public Object object;
@@ -218,5 +224,19 @@ public class NullVarargsTest {
                 new Class<?>[][] {{Object.class}, {Object[].class}}));
         assertEquals(0, Reflect.findMostSpecificSignature(nullType,
                 new Class<?>[][] {{Object[].class}, {Object.class}}));
+    }
+
+    @Test
+    public void anonymous_subclass_wraps_a_typed_varargs_tail() throws Exception {
+        assertEquals("String...2", TestUtil.eval(
+            "import bsh.NullVarargsTest.TypedVarargs;",
+            "return new TypedVarargs(\"a\", \"b\"){}.kind;"));
+    }
+
+    @Test
+    public void anonymous_subclass_wraps_an_empty_varargs_tail() throws Exception {
+        assertEquals("String...0", TestUtil.eval(
+            "import bsh.NullVarargsTest.TypedVarargs;",
+            "return new TypedVarargs(){}.kind;"));
     }
 }
