@@ -137,23 +137,23 @@ public class BshClassPath
     }
 
     public void add( URL[] urls ) {
-        URL[] expanded = expand( urls );
-        path.addAll( Arrays.asList(expanded) );
+        path.addAll( Arrays.asList(urls) );
         if ( mapsInitialized )
-            map( expanded );
+            map( urls );
     }
 
     public void add( URL url ) throws IOException {
-        for ( URL u : expand( new URL[] { url } ) ) {
-            path.add(u);
-            if ( mapsInitialized )
-                map( u );
-        }
+        path.add(url);
+        if ( mapsInitialized )
+            map( url );
     }
 
     /** A directory contributes the archives directly inside it as well as its
         own class files, which URLClassLoader would not look in by itself.
         Nested directories are not searched, matching java -cp dir/*.
+
+        Applied to paths the script adds, not to the class path the host JVM
+        was started with, which keeps resolution there the same as the JVM's.
         @param urls the path components to expand
         @return the components followed by any archives they contain */
     public static URL[] expand( URL[] urls ) {

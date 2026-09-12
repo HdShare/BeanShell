@@ -344,9 +344,10 @@ public class ClassManagerImpl extends BshClassManager
             setClassPath( new URL [] { path } );
         else {
             // opportunity here for listener in classpath
-            for ( URL url : BshClassPath.expand( new URL [] { path } ) )
+            for ( URL url : BshClassPath.expand( new URL [] { path } ) ) {
                 baseLoader.addURL( url );
-            baseClassPath.add( path );
+                baseClassPath.add( url );
+            }
             classLoaderChanged();
         }
     }
@@ -370,7 +371,7 @@ public class ClassManagerImpl extends BshClassManager
     */
     @Override
     public void setClassPath( URL [] cp ) {
-        baseClassPath.setPath( cp );
+        baseClassPath.setPath( BshClassPath.expand( cp ) );
         initBaseLoader();
         loaderMap.clear();
         classLoaderChanged();

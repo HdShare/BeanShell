@@ -156,9 +156,19 @@ public class BshClassPathTest {
     @Test
     public void directory_archives_are_mapped_for_name_discovery() throws Exception {
         File dir = dirContainingJar();
-        BshClassPath bcp = new BshClassPath("test");
-        bcp.add(dir.toURI().toURL());
-        assertThat(bcp.getClassSource("AddClass"), instanceOf(JarClassSource.class));
+        final Interpreter bsh = new Interpreter();
+        ClassManagerImpl cm = (ClassManagerImpl) bsh.getNameSpace().getClassManager();
+        cm.addClassPath(dir.toURI().toURL());
+        assertThat(cm.getClassPath().getClassSource("AddClass"),
+                instanceOf(JarClassSource.class));
+        bsh.getNameSpace().clear();
+    }
+
+    @Test
+    public void the_jvm_class_path_is_not_expanded() throws Exception {
+        File dir = dirContainingJar();
+        BshClassPath bcp = new BshClassPath("test", new URL[] { dir.toURI().toURL() });
+        assertThat(Arrays.asList(bcp.getPathComponents()), hasSize(1));
     }
 
     @Test
