@@ -1,15 +1,29 @@
 /**
-    Start an external application using the Java Runtime exec() method.
-    Display any output to the standard BeanShell output using print().
+    Start an external application and print its output with print(), including
+    anything the application writes to its standard error.
+
+    The single String form splits the command on whitespace and does not
+    honour quoting, so pass an argument that contains spaces with the
+    String[] form instead.
+
+    @return the exit status of the application
 */
 
-bsh.help.exec = "usage: exec( String arg )";
+bsh.help.exec = "usage: exec( String command | String [] command )";
 
-exec( String arg )
+int exec( String command )
 {
-    this.proc = Runtime.getRuntime().exec(arg);
-    this.din = new DataInputStream( proc.getInputStream() );
-    while( (line=din.readLine()) != null )
-        print(line);
-    return this.proc.exitValue();
+    return exec( command.trim().split("\\s+") );
+}
+
+int exec( String [] command )
+{
+    this.process = new ProcessBuilder( command )
+        .redirectErrorStream( true )
+        .start();
+    this.output = new BufferedReader(
+        new InputStreamReader( this.process.getInputStream() ) );
+    while ( (line = this.output.readLine()) != null )
+        print( line );
+    return this.process.waitFor();
 }
