@@ -113,6 +113,11 @@ public class DelayedEvalBshMethod extends BshMethod
 
     public String [] getParamTypeDescriptors() { return paramTypeDescriptors; }
 
+    /** @return which parameters were declared without a type, or null. */
+    boolean [] getUntypedParams() {
+        return null == paramTypesNode ? null : paramTypesNode.getUntypedParams();
+    }
+
     public Class<?>[] getParameterTypes()
     {
         if ( null != this.constructor )
