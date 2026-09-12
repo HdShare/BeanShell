@@ -251,7 +251,8 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.0.0-M5</version>
         <configuration>
-          <argLine>-Xmx1000M -Xms500M -XX:+UseSerialGC ${surefireArgLine}</argLine>
+          <!-- headless keeps the forked JVM from stealing window focus on macOS -->
+          <argLine>-Xmx1000M -Xms500M -XX:+UseSerialGC -Djava.awt.headless=true ${surefireArgLine}</argLine>
           <systemPropertyVariables>
             <bsh.debugClasses />
             <accessibility>false</accessibility>
