@@ -111,6 +111,9 @@ public class Interpreter
         on separate threads.
     */
     public static final ThreadLocal<Boolean> DEBUG = ThreadLocal.withInitial(()->Boolean.FALSE);
+    /** How many evaluations this thread is currently inside. */
+    private static final ThreadLocal<int[]> EVAL_DEPTH
+        = ThreadLocal.withInitial(()->new int[1]);
     private boolean EOF;
     public static boolean TRACE;
     public static boolean COMPATIBIILTY;
@@ -191,10 +194,16 @@ public class Interpreter
      * @param sourceFileInfo source file info for debugging or null. */
     public Interpreter( ConsoleAssignable console, boolean interactive,
             NameSpace namespace, Interpreter parent, String sourceFileInfo ) {
-        if ( parent == null )
+        if ( parent == null && 0 == EVAL_DEPTH.get()[0] )
             // a root interpreter must not inherit a debug flag left set by
-            // an unrelated prior session on a reused (e.g. pooled) thread
-            DEBUG.set(Boolean.getBoolean("debug"));
+            // an unrelated prior session on a reused (e.g. pooled) thread.
+            // One built while this thread is already evaluating belongs to
+            // that session, so it leaves the flag alone.
+            try {
+                DEBUG.set(Boolean.getBoolean("debug"));
+            } catch ( SecurityException e ) {
+                DEBUG.set(Boolean.FALSE);
+            }
 
         long t1 = 0;
         if (Interpreter.DEBUG.get())
@@ -496,6 +505,9 @@ public class Interpreter
         Node node = null;
         EOF = false;
         int idx = -1;
+        int[] depth = EVAL_DEPTH.get();
+        depth[0]++;
+        try {
         while( !Thread.interrupted() && !EOF ) {
             try {
                 if ( interactive )
@@ -587,6 +599,10 @@ public class Interpreter
                     callstack.push( globalNameSpace );
                 }
             }
+        }
+
+        } finally {
+            depth[0]--;
         }
 
         if ( interactive && exitOnEOF )
@@ -695,6 +711,9 @@ public class Interpreter
         throws EvalError
     {
         Object retVal = null;
+        int[] depth = EVAL_DEPTH.get();
+        depth[0]++;
+        try {
         Interpreter.debug("eval: nameSpace = ", nameSpace);
 
         /*
@@ -779,6 +798,9 @@ public class Interpreter
             }
         }
         return Primitive.unwrap( retVal );
+        } finally {
+            depth[0]--;
+        }
     }
 
     /** Optional method to release additional resources. The interpreter

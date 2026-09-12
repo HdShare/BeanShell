@@ -318,6 +318,20 @@ public class InterpreterTest {
     }
 
     @Test
+    public void debug_flag_survives_a_root_interpreter_built_while_evaluating()
+            throws Exception {
+        Interpreter bsh = new Interpreter();
+        Interpreter.DEBUG.set(true);
+        try {
+            bsh.eval("i2 = new bsh.Interpreter();");
+            assertTrue("a nested root interpreter belongs to this session",
+                    Interpreter.DEBUG.get());
+        } finally {
+            Interpreter.DEBUG.set(false);
+        }
+    }
+
+    @Test
     public void debug_flag_does_not_leak_into_new_root_interpreter() throws Exception {
         new Interpreter();
         Interpreter.DEBUG.set(true);
