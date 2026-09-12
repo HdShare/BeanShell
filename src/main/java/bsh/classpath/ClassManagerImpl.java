@@ -344,7 +344,8 @@ public class ClassManagerImpl extends BshClassManager
             setClassPath( new URL [] { path } );
         else {
             // opportunity here for listener in classpath
-            baseLoader.addURL( path );
+            for ( URL url : BshClassPath.expand( new URL [] { path } ) )
+                baseLoader.addURL( url );
             baseClassPath.add( path );
             classLoaderChanged();
         }

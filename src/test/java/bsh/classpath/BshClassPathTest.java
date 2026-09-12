@@ -29,7 +29,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 import bsh.ClassPathException;
 import bsh.EvalError;
@@ -126,6 +131,55 @@ public class BshClassPathTest {
         RuntimeException e = assertThrows(RuntimeException.class, () ->
             bcp.map(new URL[] { new URL("jar:file:/unknown/path!/") }));
         assertThat(e.getMessage(), containsString("Failed to map"));
+    }
+
+    @Rule
+    public TemporaryFolder temporary = new TemporaryFolder();
+
+    /** @return a directory holding a copy of addclass.jar, and nothing else of note */
+    private File dirContainingJar() throws IOException {
+        File dir = temporary.newFolder("lib");
+        Files.copy(new File("src/test/resources/test-scripts/Data/addclass.jar").toPath(),
+                new File(dir, "addclass.jar").toPath(), StandardCopyOption.REPLACE_EXISTING);
+        return dir;
+    }
+
+    @Test
+    public void directory_contributes_the_archives_it_contains() throws Exception {
+        File dir = dirContainingJar();
+        final Interpreter bsh = new Interpreter();
+        bsh.getNameSpace().getClassManager().addClassPath(dir.toURI().toURL());
+        assertThat(bsh.eval("return new AddClass();"), notNullValue());
+        bsh.getNameSpace().clear();
+    }
+
+    @Test
+    public void directory_archives_are_mapped_for_name_discovery() throws Exception {
+        File dir = dirContainingJar();
+        BshClassPath bcp = new BshClassPath("test");
+        bcp.add(dir.toURI().toURL());
+        assertThat(bcp.getClassSource("AddClass"), instanceOf(JarClassSource.class));
+    }
+
+    @Test
+    public void expand_leaves_non_directories_alone() throws Exception {
+        File jar = new File("src/test/resources/test-scripts/Data/addclass.jar");
+        URL jarURL = jar.toURI().toURL();
+        assertThat(BshClassPath.expand(new URL[] { jarURL }), arrayContaining(jarURL));
+    }
+
+    @Test
+    public void expand_does_not_recurse_into_nested_directories() throws Exception {
+        File dir = dirContainingJar();
+        File nested = new File(dir, "nested");
+        assertTrue("created nested dir", nested.mkdir());
+        Files.copy(new File("src/test/resources/test-scripts/Data/addedCommand.jar").toPath(),
+                new File(nested, "addedCommand.jar").toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+        List<URL> expanded = Arrays.asList(BshClassPath.expand(new URL[] { dir.toURI().toURL() }));
+        assertThat(expanded, hasSize(2));
+        assertThat(expanded, hasItem(new File(dir, "addclass.jar").toURI().toURL()));
+        assertThat(expanded, not(hasItem(new File(nested, "addedCommand.jar").toURI().toURL())));
     }
 
     @Test

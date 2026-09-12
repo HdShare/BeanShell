@@ -137,15 +137,49 @@ public class BshClassPath
     }
 
     public void add( URL[] urls ) {
-        path.addAll( Arrays.asList(urls) );
+        URL[] expanded = expand( urls );
+        path.addAll( Arrays.asList(expanded) );
         if ( mapsInitialized )
-            map( urls );
+            map( expanded );
     }
 
     public void add( URL url ) throws IOException {
-        path.add(url);
-        if ( mapsInitialized )
-            map( url );
+        for ( URL u : expand( new URL[] { url } ) ) {
+            path.add(u);
+            if ( mapsInitialized )
+                map( u );
+        }
+    }
+
+    /** A directory contributes the archives directly inside it as well as its
+        own class files, which URLClassLoader would not look in by itself.
+        Nested directories are not searched, matching java -cp dir/*.
+        @param urls the path components to expand
+        @return the components followed by any archives they contain */
+    public static URL[] expand( URL[] urls ) {
+        List<URL> expanded = new ArrayList<>();
+        for ( URL url : urls ) {
+            if ( !expanded.contains(url) )
+                expanded.add( url );
+            if ( !"file".equals(url.getProtocol()) )
+                continue;
+            File dir = new File( url.getFile() );
+            if ( !dir.isDirectory() )
+                continue;
+            File[] files = dir.listFiles();
+            if ( null == files )
+                continue;
+            Arrays.sort( files );
+            for ( File file : files )
+                if ( file.isFile() && isArchiveFileName( file.getName() ) ) try {
+                    URL archive = file.toURI().toURL();
+                    if ( !expanded.contains(archive) )
+                        expanded.add( archive );
+                } catch ( MalformedURLException e ) {
+                    throw new bsh.InterpreterError( "Bad archive path: " + file, e );
+                }
+        }
+        return expanded.toArray( new URL[0] );
     }
 
     /**
